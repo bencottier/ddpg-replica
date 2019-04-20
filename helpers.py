@@ -28,3 +28,25 @@ def mlp_actor_critic(x, a, action_space, hidden_sizes=[300, 400], activation=tf.
         q_pi = tf.squeeze(mlp(tf.concat([x, pi], axis=1), hidden_sizes+[1], activation, None), axis=1)
     return pi, q, q_pi
 
+
+if __name__ == '__main__':
+
+    class ActionSpace():
+        high = [10.0]
+
+    action_space = ActionSpace()
+    obs_dim = 2
+    act_dim = 3
+    batch_size = 4
+    x_ph = tf.placeholder(tf.float32, shape=(None, obs_dim))
+    a_ph = tf.placeholder(tf.float32, shape=(None, act_dim))
+    pi, q, q_pi = mlp_actor_critic(x_ph, a_ph, action_space)
+    
+    sess = tf.Session()
+    sess.run(tf.global_variables_initializer())
+    feed_dict = {x_ph: np.random.normal(size=(batch_size, obs_dim)), 
+                 a_ph: np.random.normal(size=(batch_size, act_dim))}
+    pi, q, q_pi = sess.run([pi, q, q_pi], feed_dict=feed_dict)
+    print("Pi(s):", pi)
+    print("Q(s, a):", q)
+    print("Q(s, pi):", q_pi)
