@@ -7,7 +7,26 @@ import tensorflow as tf
 import numpy as np
 
 
+def placeholders(*shapes):
+    phs = []
+    for shape in shapes:
+        phs.append(tf.placeholder(tf.float32, shape=shape))
+    return phs
+
+
 def mlp(x, hidden_sizes, activation, output_activation=None):
+    """
+    Create an multi-layer perceptron network.
+
+    Arguments:
+        x: Tensor. Input to the network.
+        hidden_sizes: iterable of int. Number of units in each hidden layer.
+        activation: callable. Activation function applied at each hidden layer.
+        output_activation: callable. Activation function applied at the output layer.
+
+    Returns:
+        Output tensor of the network.
+    """
     out = x
     for hidden_size in hidden_sizes[:-1]:
         out = tf.layers.dense(out, hidden_size, activation=activation)
@@ -15,9 +34,25 @@ def mlp(x, hidden_sizes, activation, output_activation=None):
     return out
 
 
-def mlp_actor_critic(x, a, action_space, hidden_sizes=[300, 400], activation=tf.nn.relu):
+def mlp_actor_critic(x, a, action_space, hidden_sizes=(300, 400), activation=tf.nn.relu):
+    """
+    Create MLPs for an actor-critic RL algorithm.
+
+    Arguments:
+        x: Tensor. Observation or state.
+        a: Tensor. Action.
+        action_space: gym.Space. Contains information about the action space.
+        hidden_sizes:  iterable of int. Number of units in each hidden layer of the MLPs.
+        activation: callable. Activation function applied at each hidden layer of the MLPs.
+
+    Returns:
+        Output tensors for
+            pi: actor or policy network.
+            q: critic or action-value network, taking (x, a) as input.
+            q_pi: critic or action-value network, taking (x, pi) as input.
+    """
     act_dim = a.shape[1]
-    act_limit = action_space.high[0]
+    act_limit = action_space.high
     hidden_sizes = list(hidden_sizes)
     with tf.variable_scope('pi'):
         pi = act_limit * mlp(x, hidden_sizes+[act_dim], activation, tf.nn.tanh)
