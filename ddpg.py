@@ -11,15 +11,16 @@ import tensorflow as tf
 def ddpg(env, discount, batch_size, polyak):
 
     action_space = env.action_space
-    act_dim = len(action_space.shape)
-    obs_dim = len(env.observation_space.shape)
-    env.reset()
-    _, rwd, _, _ = env.step(env.action_space.sample())
-    rwd_dim = len(rwd.shape)
+    act_dim = action_space.shape[0]
+    obs_dim = env.observation_space.shape[0]
 
-    [x_ph, a_ph, x2_ph, r_ph, d_ph] = placeholders(obs_dim, act_dim, obs_dim, rwd_dim, ())
+    x_ph = tf.placeholder(tf.float32, shape=(None, obs_dim))
+    a_ph = tf.placeholder(tf.float32, shape=(None, act_dim))
+    x2_ph = tf.placeholder(tf.float32, shape=(None, obs_dim))
+    r_ph = tf.placeholder(tf.float32, shape=(None,))
+    d_ph = tf.placeholder(tf.float32, shape=(None,))
 
-    with tf.variable_scope('current'):
+    with tf.variable_scope('actor-critic'):
         pi, q, q_pi = mlp_actor_critic(x_ph, a_ph, action_space)
 
     with tf.variable_scope('target'):  # scope helps group the vars for target update
@@ -34,9 +35,10 @@ def ddpg(env, discount, batch_size, polyak):
 
     # Update targets
     # TODO Not sure if correct. Even if correct, it's not how I remember the baseline.
-    # Also, we only want to update the parameters, not the output values. Seems wrong.
-    for v,v_targ in zip(tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='current'),
-                        tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='target')):             
-        tf.assign(v_targ, polyak*v + (1-polyak)*v_targ)
-
+    ac_vars = [v for v in tf.trainable_variables() 
+               if ('actor-critic' in v.name and 'dense' in v.name)]
+    targ_vars = [v for v in tf.trainable_variables()
+               if ('target' in v.name and 'dense' in v.name)]
+    for i in range(len(targ_vars)):
+        tf.assign(targ_vars[i], polyak * ac_vars[i] + (1 - polyak) * targ_vars[i])
     
