@@ -1,9 +1,15 @@
 # DDPG project
 
 Task: implement the DDPG algorithm in TensorFlow. Test on an OpenAI Gym environment.
+
 Rules:
 
-- No peeking at OpenAI Spinning Up code
+- No peeking at any code that implements DDPG or a similar algorithm
+    - Exception: stuck for more than 10 hours AND asked a friend
+- As far as I can think of, anything else should be allowed, but in particular:
+    - Original paper ("source material")
+    - OpenAI Gym docs
+    - TensorFlow docs
 
 ## 2019.04.20
 
