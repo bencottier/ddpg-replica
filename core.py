@@ -7,6 +7,26 @@ import tensorflow as tf
 import numpy as np
 
 
+class OrnsteinUhlenbeckProcess(object):
+    
+    def __init__(self, theta, sigma, mu=0., shape=None, x0=None, dt=.001):
+        self.shape = shape
+        self.theta = theta
+        self.sigma = sigma
+        self.mu = mu
+        self.dt = dt
+        self.sqrtdt = np.sqrt(self.dt)
+        if x0 is None:
+            self.x = np.zeros(self.shape)
+        else:
+            self.x = x0
+
+    def sample(self):
+        self.x += self.theta * (self.mu - self.x) * self.dt + \
+                self.sigma * self.sqrtdt * np.random.randn()
+        return self.x
+
+
 def placeholders(*shapes):
     phs = []
     for shape in shapes:
@@ -66,22 +86,34 @@ def mlp_actor_critic(x, a, action_space, hidden_sizes=(300, 400), activation=tf.
 
 if __name__ == '__main__':
 
-    class ActionSpace():
-        high = [10.0]
+    # class ActionSpace():
+    #     high = [10.0]
 
-    action_space = ActionSpace()
-    obs_dim = 2
-    act_dim = 3
-    batch_size = 4
-    x_ph = tf.placeholder(tf.float32, shape=(None, obs_dim))
-    a_ph = tf.placeholder(tf.float32, shape=(None, act_dim))
-    pi, q, q_pi = mlp_actor_critic(x_ph, a_ph, action_space)
+    # action_space = ActionSpace()
+    # obs_dim = 2
+    # act_dim = 3
+    # batch_size = 4
+    # x_ph = tf.placeholder(tf.float32, shape=(None, obs_dim))
+    # a_ph = tf.placeholder(tf.float32, shape=(None, act_dim))
+    # pi, q, q_pi = mlp_actor_critic(x_ph, a_ph, action_space)
     
-    sess = tf.Session()
-    sess.run(tf.global_variables_initializer())
-    feed_dict = {x_ph: np.random.normal(size=(batch_size, obs_dim)), 
-                 a_ph: np.random.normal(size=(batch_size, act_dim))}
-    pi, q, q_pi = sess.run([pi, q, q_pi], feed_dict=feed_dict)
-    print("Pi(s):", pi)
-    print("Q(s, a):", q)
-    print("Q(s, pi):", q_pi)
+    # sess = tf.Session()
+    # sess.run(tf.global_variables_initializer())
+    # feed_dict = {x_ph: np.random.normal(size=(batch_size, obs_dim)), 
+    #              a_ph: np.random.normal(size=(batch_size, act_dim))}
+    # pi, q, q_pi = sess.run([pi, q, q_pi], feed_dict=feed_dict)
+    # print("Pi(s):", pi)
+    # print("Q(s, a):", q)
+    # print("Q(s, pi):", q_pi)
+
+    x0 = 0
+    process = OrnsteinUhlenbeckProcess(0.15, 0.2, x0=x0)
+    n = 100
+    x = np.zeros(n)
+    x[0] = x0
+    for i in range(n-1):
+        x[i + 1] = process.sample()
+
+    import matplotlib.pyplot as plt
+    plt.plot(x)
+    plt.show()
