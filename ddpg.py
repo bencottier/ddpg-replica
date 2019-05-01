@@ -9,8 +9,11 @@ import tensorflow as tf
 import numpy as np
 
 
-def ddpg(env, discount, batch_size, polyak, actor_critic=mlp_actor_critic,
-        ac_kwargs=dict()):
+def ddpg(env, discount, batch_size, polyak, seed=0, 
+        actor_critic=mlp_actor_critic, ac_kwargs=dict()):
+
+    np.random.seed(seed)
+    tf.random.set_random_seed(seed)
 
     action_space = env.action_space
     act_dim = action_space.shape[0]
@@ -66,4 +69,4 @@ def ddpg(env, discount, batch_size, polyak, actor_critic=mlp_actor_critic,
     # print(ex_targ_var_1_np)
     # assert np.allclose(ex_targ_var_1, ex_targ_var_1_np)
 
-    
+
