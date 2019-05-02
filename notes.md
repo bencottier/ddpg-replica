@@ -106,3 +106,27 @@ Action sample function
 - 
 
 Random thought: it would be a nice extra project, after this, to implement DDPG in the more recent TensorFlow paradigm, i.e. Keras and eager execution.
+
+## 2019.05.02
+
+Implementing action sample function
+
+- Ok, I initialise the random process near the top. Then I have this
+
+    ```
+    def select_action():
+        return pi + process.sample()
+    ```
+
+- Feeling like there's more to it...
+- I mean, that is pretty much a direct translation of what the pseudocode says. The question is whether it gels with TensorFlow.
+    - `pi` is a `tf.Tensor`
+    - `process.sample()` is a `numpy` array
+    - Right, so adding these two objects is probably not gonna happen.
+    - So should we change the random process code to be all TF? Or find a roundabout way of making the addition compatible?
+    - `tf.convert_to_tensor`?
+        - How inefficient is it to do every time?
+    - There was almost certaintly more to it in spinning up, but they weren't doing this random process API that I've made.
+        - Oh wait, I might be thinking of TD3. That might have a more sophisticated action sampler than this.
+    - Let's roll with it for now.
+- Next thing is to implement the training loop (at least a skeleton of it).

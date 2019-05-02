@@ -3,14 +3,14 @@ ddpg.py
 
 author: bencottier
 """
-from core import mlp_actor_critic, placeholders
+import core
 import gym
 import tensorflow as tf
 import numpy as np
 
 
 def ddpg(env, discount, batch_size, polyak, seed=0, 
-        actor_critic=mlp_actor_critic, ac_kwargs=dict()):
+        actor_critic=core.mlp_actor_critic, ac_kwargs=dict()):
 
     np.random.seed(seed)
     tf.random.set_random_seed(seed)
@@ -24,6 +24,9 @@ def ddpg(env, discount, batch_size, polyak, seed=0,
     x2_ph = tf.placeholder(tf.float32, shape=(None, obs_dim))
     r_ph = tf.placeholder(tf.float32, shape=(None,))
     d_ph = tf.placeholder(tf.float32, shape=(None,))
+
+    # Initalise random process for action exploration
+    process = core.OrnsteinUhlenbeckProcess(theta=0.15, sigma=0.2)
 
     with tf.variable_scope('actor-critic'):
         pi, q, q_pi = actor_critic(x_ph, a_ph, action_space, **ac_kwargs)
@@ -69,4 +72,7 @@ def ddpg(env, discount, batch_size, polyak, seed=0,
     # print(ex_targ_var_1_np)
     # assert np.allclose(ex_targ_var_1, ex_targ_var_1_np)
 
+    def select_action():
+        return pi + tf.convert_to_tensor(process.sample())
 
+    
