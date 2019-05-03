@@ -130,3 +130,61 @@ Implementing action sample function
         - Oh wait, I might be thinking of TD3. That might have a more sophisticated action sampler than this.
     - Let's roll with it for now.
 - Next thing is to implement the training loop (at least a skeleton of it).
+
+## 2019.05.03
+
+Implementing training loop
+
+- Start by iterating over episodes
+    - Should number of episodes be a function argument?
+    - I think number of epochs is an argument, at least.
+    - Then there is iterations or episodes per epoch. Which is which/are any one and the same?
+    - I feel like epoch = episode is reasonable. An epoch in supervised learning on samples is a run through the entire set of samples. An episode is a run through the environment via a trajectory. Granted a trajectory is one specific sequence of possibly infinite, but there is some similarity.
+        - But I can also see how choosing a certain number of episodes per epoch is gives a sufficiently broad range of trajectories on average, and is closer to the idea of an epoch in SL.
+    - Pretty sure iterations <=> time steps. 
+        - But ARE you sure?
+        - From memory, iterations were ~10^4 in the spinning up plots. The paper reports most problems were solved in fewer than 2.5 million time steps. Many were solved in far fewer, but two orders of magnitude fewer? Look, I don't know. I'm not calibrated enough with deep RL. But it seems unlikely.
+    - But does this matter right now? Let's run with a hypothesis and iterate.
+- `steps_per_epoch` feels familiar
+    - Every `steps_per_epoch` we report stats
+    - Keep the episode-step nested loops, but continue to increment `steps` across episodes
+    - Or, perhaps we set the episode to terminate if time step reaches `steps_per_epoch`, and thus there is one epoch per episode? That fits nicely, but still not confident. I mean, there would still be uneven steps per epoch if it can terminate before the limit.
+- For now I will stick closer to the paper and use 'number of episodes' and 'max steps per episode' rather than epochs. Hopefully it will become clearer as I progress.
+- Ah, I forgot about optimisers. Adam or...?
+    - Yep, Adam in the paper.
+    - Actor LR: 1e-4
+    - Critic LR: 1e-3
+    - Weight decay for critic: 1e-2
+- I quickly implemented a buffer as a list of tuples, but now I think there may be more convenient formats to group the states/actions/rewards in batches as arrays.
+    - Replay buffer size in paper: 1e6
+    - It sounds like `np.random.choice` returns an `ndarray` even if the input is only array-like, so that's convenient
+    - Tried doing it as a numpy array, but ran into trouble assigning an array of different-sized arrays to an index of...an array. Error is `setting an array element with a sequence.`
+        - In light of this, is it easier to use separate but aligned buffers for each kind of variable?
+    - My solution when using list of tuples:
+
+        ```python
+                # Store transition in buffer
+        if len(buffer) < max_buffer_size:
+            buffer.append((o, a, r, o2))
+        else:
+            buffer[t % max_buffer_size] = (o, a, r, o2)
+        # Sample a random minibatch of transitions from buffer
+        transitions = []
+        for _ in range(batch_size):
+            transitions.append(random.choice(buffer))
+        x_batch = np.array([transition[0] for transition in transitions])
+        a_batch = np.array([transition[1] for transition in transitions])
+        r_batch = np.array([transition[2] for transition in transitions])
+        x2_batch = np.array([transition[3] for transition in transitions])
+        ```
+
+        - The assignments at the end are tedious.
+
+Side notes
+
+- Paper does not include actions in Q until second layer
+
+Next
+
+- Set up optimisers
+- Implement graph execution and backpropagation
