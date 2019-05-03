@@ -16,15 +16,16 @@ class OrnsteinUhlenbeckProcess(object):
         self.mu = mu
         self.dt = dt
         self.sqrtdt = np.sqrt(self.dt)
-        if x0 is None:
-            self.x = np.zeros(self.shape)
-        else:
-            self.x = x0
+        self.x0 = np.zeros(self.shape) if x0 is None else x0
+        self.reset()
 
     def sample(self):
         self.x += self.theta * (self.mu - self.x) * self.dt + \
                 self.sigma * self.sqrtdt * np.random.randn()
         return self.x
+
+    def reset(self):
+        self.x = self.x0
 
 
 def placeholders(*shapes):
