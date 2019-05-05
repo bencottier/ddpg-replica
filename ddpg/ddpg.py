@@ -73,6 +73,10 @@ def ddpg(env, discount, batch_size, polyak, num_episode, max_step,
     # print(ex_targ_var_1_np)
     # assert np.allclose(ex_targ_var_1, ex_targ_var_1_np)
 
+    # Optimisers
+    opt_actor = tf.train.AdamOptimizer(learning_rate=1e-4)
+    opt_critic = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-2, learning_rate=1e-3)
+
     def select_action():
         return pi + tf.convert_to_tensor(process.sample())
 
