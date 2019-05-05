@@ -188,3 +188,64 @@ Next
 
 - Set up optimisers
 - Implement graph execution and backpropagation
+
+## 2019.05.05
+
+Setting up optimisers
+
+- `tf.train.AdamOptimizer`
+    - Assume default betas
+- With weight decay: `tf.train.AdamWOptimizer`
+    - TF doc: 
+        > It computes the update step of train.AdamOptimizer and additionally decays the variable. Note that this is different from adding L2 regularization on the variables to the loss: it regularizes variables with large gradients more than L2 regularization would, which was shown to yield better training loss and generalization error in the paper above
+    - DDPG paper:
+        > For Q we included L2 weight decay of 1e−2
+    - Hmm
+    - So if I use TF default weight decay, it may not be precisely the same. I am ok with this - I'm not trying for a perfect replication, I'm just trying to get it to work and be able to compare my results roughly to baselines.
+- I was wondering if the optimisers apply to both main and target networks, but if targets are merely derived from a polyak average of main, then of course.
+
+Optimiser updates
+
+- Ok I'm looking at this policy gradient equation again. I was confused before. I think I get it.
+    - You have grad(Q)*grad(pi). This is just the chain rule because (crucially) pi is substituted for the action in grad(Q)
+    - Does this mean `pi_loss` should use `q_pi` not `q`? I'd say so. Otherwise `pi_loss` does not depend on pi! Remember this is an off-policy algorithm.
+- Use `opt.minimize()` to compute AND apply gradients
+    - Do I need to store the returned operation? I guess so. It could be one of the operations in `sess.run()`.
+
+Target update
+
+- I'm not sure how this is going to work. I have already `assign`ed the target update, do I also need to `sess.run()` it?
+    - Think of the computation graph.
+    - Ok I've drawn what I think the graph is. I'll get to the problem of the first iteration, but for now let's assume we are more than one iteration into it. Imagine we
+        - Initialise the placeholder values
+        - Feed through to `pi_loss` and `q_loss`
+        - Update `ac_vars` by propagating the loss gradient back.
+    - I would then expect the operation we created by assigning the polyak-average to target vars would also execute, using the updated `ac_vars`
+    - Let's imagine the process with some personification.
+        - Ok executing `critic_minimize` -> `q_loss` -> (`q`, `backup`)
+        - `q` -> (`x_ph`, `a_ph`, theta_q)
+        - `backup` -> (`q_pi_targ`, `r_ph`, `d_ph`)
+        - `q_pi_targ` -> (`pi_targ`, `x2_ph`, theta_q_targ)
+        - `pi_targ` -> (`x2_ph`, theta_pi_targ)
+        - Now theta_q_targ has an assignment to it, but that operation was added after all this. So it gets values from `global_variables_initialiser`. Similarly for theta_pi_targ.
+        - Feed forward!
+        - Feed backward!
+        - `theta`'s are now updated.
+        - Next iteration
+        - [Repeat graph dependency process above]. Oh, theta_q_targ depends on theta_q and the previous theta_q_targ? Ok, noted. Similarly for theta_pi_targ.
+        - Feed forward!
+        - ...
+    - So now I feel like I get it, and there is no need to execute some target update process in the training loop. It's all in the graph.
+- A couple of questions are raised from above thoughts
+    - _Where_ should we place the target update assignment in code?
+        - Should the `minimize` calls go before it? This follows the logic that TF would only execute intermediate operations if they were added to the graph before the top-level operation (I do not know if this is the case).
+        - I imagine TF builds a tree of dependent operations. If we make the polyak assignment before the minimize operation, then it follows that the polyak assignment will execute and feed into the loss the first time. Given everything is kinda random initially, this doesn't seem like it matters much anyway (famous last words?). But best to be as correct as we think we can be.
+    - For the first iteration, should the target variables be updated before feeding in to everything else?
+        - The paper suggests not, because Algorithm 1 initialises the target parameters and then only updates them at the end of the training loop.
+- In light of this thinking, I will move the `minimize` calls out of the training loop, before the target update assignment. Similarly the optimiser inits need to be moved up.
+
+Next
+
+- Read over the code vigilantly for any blunders
+- Consider `step` function just being one iteration rather than a for loop
+- Add basic stat reporting to training loop (so we can start testing!)
