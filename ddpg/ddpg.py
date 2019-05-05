@@ -42,6 +42,15 @@ def ddpg(env, discount, batch_size, polyak, num_episode, max_step,
     # From memory. Not quite clear how this relates to equation in paper.
     pi_loss = -tf.reduce_mean(q_pi)
 
+    # Optimisers
+    opt_actor = tf.train.AdamOptimizer(learning_rate=1e-4, name='opt_actor')
+    opt_critic = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-2, learning_rate=1e-3,
+                                               name='opt_critic')
+    # Update critic by minimizing the loss
+    critic_minimize = opt_critic.minimize(q_loss)
+    # Update the actor policy using the sampled policy gradient
+    actor_minimize = opt_actor.minimize(pi_loss)
+
     # Target variable update
     # TODO Not sure if correct. Even if correct, it's not how I remember the baseline.
     ac_vars = [v for v in tf.trainable_variables() 
@@ -49,38 +58,24 @@ def ddpg(env, discount, batch_size, polyak, num_episode, max_step,
     targ_vars = [v for v in tf.trainable_variables()
                if ('target' in v.name and 'dense' in v.name)]
 
-    # TEST
-    # TODO comment out once verified
-    # ex_targ_var = targ_vars[0][:3, :3]
-    # ex_ac_var = ac_vars[0][:3, :3]
-    # sess = tf.Session()
-    # sess.run(tf.global_variables_initializer())
-    # ex_targ_var_0 = sess.run(ex_targ_var)
-    # ex_ac_var_0 = sess.run(ex_ac_var)
-    # print(ex_targ_var_0)
-    # print(ex_ac_var_0)
-
     for i in range(len(targ_vars)):
         targ_vars[i] = targ_vars[i].assign(polyak * ac_vars[i] + (1 - polyak) * targ_vars[i])
-    
-    # TEST
-    # TODO comment out once verified
-    # ex_targ_var = targ_vars[0][:3, :3]
-    # ex_ac_var = ac_vars[0][:3, :3]
-    # ex_targ_var_1 = sess.run(ex_targ_var)
-    # ex_targ_var_1_np = polyak * ex_ac_var_0 + (1 - polyak) * ex_targ_var_0
-    # print(ex_targ_var_1)
-    # print(ex_targ_var_1_np)
-    # assert np.allclose(ex_targ_var_1, ex_targ_var_1_np)
 
-    # Optimisers
-    opt_actor = tf.train.AdamOptimizer(learning_rate=1e-4)
-    opt_critic = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-2, learning_rate=1e-3)
+    # Replay buffer
+    max_buffer_size = 1e6
+    buffer = []
+
+    # Start up a session
+    sess = tf.Session()
+    sess.run(tf.global_variables_initializer())
 
     def select_action():
         return pi + tf.convert_to_tensor(process.sample())
 
     def step():
+        """
+        Execute a time step in training.
+        """
         # Receive initial observation state
         o = env.reset()
         for t in range(max_step):
@@ -101,20 +96,17 @@ def ddpg(env, discount, batch_size, polyak, num_episode, max_step,
             a_batch = np.array([transition[1] for transition in transitions])
             r_batch = np.array([transition[2] for transition in transitions])
             x2_batch = np.array([transition[3] for transition in transitions])
-            # TODO Update critic by minimizing the loss
-
-            # TODO Update the actor policy using the sampled policy gradient
-
-            # TODO Update the target networks
-
+            # Run training ops
+            feed_dict = {x_ph: o, a_ph: a, x2_ph: o2, r_ph: r, d_ph: done}
+            q_loss, pi_loss = sess.run([critic_minimize, actor_minimize], 
+                                       feed_dict=feed_dict)
+            # Target networks update automatically through the graph
             # Advance the stored state
             o = o2
             if done:
                 break
         # TODO return stats?
 
-    max_buffer_size = 1e6
-    buffer = []
     # Training loop
     for episode in range(num_episode):
         # Initalise random process for action exploration
