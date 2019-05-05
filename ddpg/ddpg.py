@@ -33,14 +33,14 @@ def ddpg(env, discount, batch_size, polyak, num_episode, max_step,
         pi, q, q_pi = actor_critic(x_ph, a_ph, action_space, **ac_kwargs)
 
     with tf.variable_scope('target'):  # scope helps group the vars for target update
-        pi_targ, q_targ, q_pi_targ = actor_critic(x2_ph, a_ph, action_space, **ac_kwargs)
+        _, _, q_pi_targ = actor_critic(x2_ph, a_ph, action_space, **ac_kwargs)
 
     # Use "done" variable to cancel future value when at end of episode
     # The stop_gradient means inputs to the operation will not factor into gradients
     backup = tf.stop_gradient(r_ph + d_ph * discount * q_pi_targ)
     q_loss = tf.reduce_mean((backup - q)**2)
     # From memory. Not quite clear how this relates to equation in paper.
-    pi_loss = -tf.reduce_mean(q)
+    pi_loss = -tf.reduce_mean(q_pi)
 
     # Target variable update
     # TODO Not sure if correct. Even if correct, it's not how I remember the baseline.
