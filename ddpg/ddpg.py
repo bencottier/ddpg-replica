@@ -39,7 +39,6 @@ def ddpg(env, discount, batch_size, polyak, num_episode, max_step,
     # The stop_gradient means inputs to the operation will not factor into gradients
     backup = tf.stop_gradient(r_ph + d_ph * discount * q_pi_targ)
     q_loss = tf.reduce_mean((backup - q)**2)
-    # From memory. Not quite clear how this relates to equation in paper.
     pi_loss = -tf.reduce_mean(q_pi)
 
     # Optimisers
@@ -53,16 +52,13 @@ def ddpg(env, discount, batch_size, polyak, num_episode, max_step,
 
     # Target variable update
     # TODO Not sure if correct. Even if correct, it's not how I remember the baseline.
-    ac_vars = [v for v in tf.trainable_variables() 
-               if ('actor-critic' in v.name and 'dense' in v.name)]
-    targ_vars = [v for v in tf.trainable_variables()
-               if ('target' in v.name and 'dense' in v.name)]
-
+    ac_vars = [v for v in tf.trainable_variables() if 'actor-critic' in v.name]
+    targ_vars = [v for v in tf.trainable_variables() if 'target' in v.name]
     for i in range(len(targ_vars)):
         targ_vars[i] = targ_vars[i].assign(polyak * ac_vars[i] + (1 - polyak) * targ_vars[i])
 
     # Replay buffer
-    max_buffer_size = 1e6
+    max_buffer_size = 1000000
     buffer = []
 
     # Start up a session
@@ -83,23 +79,19 @@ def ddpg(env, discount, batch_size, polyak, num_episode, max_step,
             a = select_action()
             # Execute action and observe reward and new state
             o2, r, done, _ = env.step(a)
+            transition_t = (o, a, r, o2, done)
             # Store transition in buffer
             if len(buffer) < max_buffer_size:
-                buffer.append((o, a, r, o2))
+                buffer.append(transition_t)
             else:
-                buffer[t % max_buffer_size] = (o, a, r, o2)
+                buffer[t % max_buffer_size] = transition_t
             # Sample a random minibatch of transitions from buffer
-            transitions = []
-            for _ in range(batch_size):
-                transitions.append(random.choice(buffer))
-            x_batch = np.array([transition[0] for transition in transitions])
-            a_batch = np.array([transition[1] for transition in transitions])
-            r_batch = np.array([transition[2] for transition in transitions])
-            x2_batch = np.array([transition[3] for transition in transitions])
+            transitions = [random.choice(buffer) for _ in range(batch_size)]
+            [x_batch, a_batch, r_batch, x2_batch, d_batch] = \
+                    [np.array([tr[i] for tr in transitions]) for i in range(5)]
             # Run training ops
-            feed_dict = {x_ph: o, a_ph: a, x2_ph: o2, r_ph: r, d_ph: done}
-            q_loss, pi_loss = sess.run([critic_minimize, actor_minimize], 
-                                       feed_dict=feed_dict)
+            feed_dict = {x_ph: x_batch, a_ph: a_batch, x2_ph: x2_batch, r_ph: r_batch, d_ph: d_batch}
+            q_loss, pi_loss = sess.run([critic_minimize, actor_minimize], feed_dict=feed_dict)
             # Target networks update automatically through the graph
             # Advance the stored state
             o = o2
