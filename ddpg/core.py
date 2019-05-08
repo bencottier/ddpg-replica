@@ -55,7 +55,7 @@ def mlp(x, hidden_sizes, activation, output_activation=None):
     return out
 
 
-def mlp_actor_critic(x, a, action_space, hidden_sizes=(300, 400), activation=tf.nn.relu):
+def mlp_actor_critic(x, a, action_space, hidden_sizes=(400, 300), activation=tf.nn.relu):
     """
     Create MLPs for an actor-critic RL algorithm.
 
