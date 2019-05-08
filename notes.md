@@ -249,3 +249,43 @@ Next
 - Read over the code vigilantly for any blunders
 - Consider `step` function just being one iteration rather than a for loop
 - Add basic stat reporting to training loop (so we can start testing!)
+
+## 2019.05.08
+
+Reading over code
+
+- Default `hidden_sizes` was wrong way around
+- The use of `'dense'` to get network parameters is not general (e.g. learning from pixels). Is there any general method?
+    - Maybe I don't need `'dense'` at all. I put it there to avoid bundling in the higher level variables like `q` and `out`. But do these come under `tf.trainable_variables`? Probably not, because they are just outputs. Only the parameters are trainable.
+    - We can test this out.
+    - Can confirm that `'dense'` is currently unnecessary
+- Ah, it was feeding in the tuple from the current time step $t$ instead of the replay buffer batch $i$.
+    - Oh, I think this means `done` also needs to be stored in the replay buffer. That's a departure from the pseudocode.
+
+Training loop position
+
+- Currently we have the episode loop top-level in `ddpg()`, and the iteration loop wrapped in a `step()` function which is called each episode iteration.
+- At the top of `step()` I initialise the environment with the initial observation, `o = env.reset()`. `o` is referenced for the buffer and reassigned with the next observation. If we moved the step loop outside `step()` so it was just one step, then I would have to parse in `o` and return `o` for reassignment.
+- At least for now, `step()` isn't of benefit - the abstraction is only in syntax so that we have a simple-looking main loop.
+- I'll keep it as-is for now
+
+Reporting
+
+- Data
+    - Episode return
+        - I can't see a way to get this directly, so we'll need to add it up ourselves
+    - `q_loss`
+    - `pi_loss`
+    - Episode
+    - Total steps
+    - Steps per episode
+- Statistics
+    - mean, std, min, max
+    - sum (for steps and return)
+- API
+    - Class seems best
+    - We could carry a reporter object around with the `step()` function. Each step we let the reporter know the reward and it updates its internal value of return. Maybe q_loss, pi_loss too, but not sure if it is more informative to average that over the whole episode, or the last n steps, or the last step.
+    - At the end of an episode we let the reporter know the final time step `t` so it can accumulate total steps, and steps-per-episode stats
+- We also want logging, and from that, plotting...uh oh, scope creep?
+    - It would make life easier to use the `spinningup` API here. But I would have to avoid any view of `ddpg.py`, and any calls to it (because I don't even want to see the function arguments).
+    - It seems safe and compliant to import `spinup.utils.logx` and only interact with that.
