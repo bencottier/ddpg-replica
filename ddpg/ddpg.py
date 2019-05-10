@@ -5,9 +5,10 @@ author: bencottier
 """
 import core
 import gym
+from spinup.utils.logx import Logger, EpochLogger
 import tensorflow as tf
 import numpy as np
-from spinup.utils.logx import Logger, EpochLogger
+import random
 
 
 def ddpg(env, discount, batch_size, polyak, num_episode, max_step,
@@ -74,8 +75,8 @@ def ddpg(env, discount, batch_size, polyak, num_episode, max_step,
     output_dict = {'q_loss': q_loss, 'pi_loss': pi_loss}
     epoch_logger.setup_tf_saver(sess, input_dict, output_dict)
 
-    def select_action():
-        return pi + tf.convert_to_tensor(process.sample())
+    def select_action(a_pi):
+        return a_pi + process.sample()
 
     def episode():
         """
@@ -86,7 +87,8 @@ def ddpg(env, discount, batch_size, polyak, num_episode, max_step,
         ret = 0  # return of episode
         for t in range(max_step):
             # Select action according to the current policy and exploration noise
-            a = select_action()
+            a_pi = np.squeeze(sess.run(pi, feed_dict={x_ph: o.reshape([1, -1])}), axis=0)
+            a = select_action(a_pi)
             # Execute action and observe reward and new state
             o2, r, done, _ = env.step(a)
             ret += r
@@ -103,30 +105,33 @@ def ddpg(env, discount, batch_size, polyak, num_episode, max_step,
             # Run training ops
             feed_dict = {x_ph: x_batch, a_ph: a_batch, x2_ph: x2_batch, r_ph: r_batch, d_ph: d_batch}
             ops = [critic_minimize, actor_minimize, q_loss, pi_loss]
-            _, _, q_loss, pi_loss = sess.run(ops, feed_dict=feed_dict)
+            _, _, q_loss_eval, pi_loss_eval = sess.run(ops, feed_dict=feed_dict)
             # Target networks update automatically through the graph
             # Advance the stored state
             o = o2
             if done:
                 break
-            epoch_logger.store(QLoss=q_loss)
-            epoch_logger.store(PiLoss=pi_loss)
+            epoch_logger.store(QLoss=q_loss_eval)
+            epoch_logger.store(PiLoss=pi_loss_eval)
         epoch_logger.store(Return=ret)
         epoch_logger.store(Steps=t)
 
     # Training loop
     for ep in range(num_episode):
+        epoch_logger.store(Epoch=ep+1)
         # Initalise random process for action exploration
         process.reset()
         episode()
         # Reporting
+        epoch_logger.log_tabular('Epoch', average_only=True)
+        epoch_logger.log_tabular('Steps', average_only=True)
+        epoch_logger.log_tabular('Return', average_only=True)
         epoch_logger.log_tabular('QLoss')
         epoch_logger.log_tabular('PiLoss')
-        epoch_logger.log_tabular('Return')
-        epoch_logger.log_tabular('Steps')
         epoch_logger.dump_tabular()
         # Save state of training variables (use itr=ep to not overwrite)
-        epoch_logger.save_state({'ac_vars': ac_vars, 'targ_vars': targ_vars})
+        # TODO: investigate cause of `Warning: could not pickle state_dict.`
+        # epoch_logger.save_state({'trainable_variables': tf.trainable_variables()})
 
     env.close()
 

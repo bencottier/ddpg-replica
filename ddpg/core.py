@@ -16,7 +16,7 @@ class OrnsteinUhlenbeckProcess(object):
         self.mu = mu
         self.dt = dt
         self.sqrtdt = np.sqrt(self.dt)
-        self.x0 = np.zeros(self.shape) if x0 is None else x0
+        self.x0 = np.zeros(self.shape, dtype=np.float32) if x0 is None else x0
         self.reset()
 
     def sample(self):
