@@ -17,4 +17,5 @@ if __name__ == '__main__':
     # env.close()
 
     env = gym.make('HalfCheetah-v2')
-    ddpg(env, discount=0.99, batch_size=64, polyak=0.001)
+    ddpg(env, discount=0.99, batch_size=64, polyak=0.001, 
+            num_episode=1, max_step=5000, logdir='out')
