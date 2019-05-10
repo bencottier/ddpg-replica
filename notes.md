@@ -289,3 +289,51 @@ Reporting
 - We also want logging, and from that, plotting...uh oh, scope creep?
     - It would make life easier to use the `spinningup` API here. But I would have to avoid any view of `ddpg.py`, and any calls to it (because I don't even want to see the function arguments).
     - It seems safe and compliant to import `spinup.utils.logx` and only interact with that.
+
+## 2019.05.10
+
+Configuring loggers
+
+- Right, logger should start at the top of the function
+- Can use `locals()` to collect all local variables in dictionary. At the top of a function, this will just be the input arguments.
+- Also use `setup_tf_saver` after computation graph is set but before training
+- Now to log during training
+    - End of step: e.g. `epoch_logger.store(QLoss=q_loss)`
+    - End of epoch: e.g. `epoch_logger.log_tabular('QLoss')`
+    - End of epoch, to save to fild: `epoch_logger.dump_tabular()`
+- Note `EpochLogger.log_tabular()` empties the value for the given key once logged. This makes sense to reset for the next epoch.
+- What should I put in `state_dict` for `Logger.save_state()`?
+    - > usually just a copy of the environment---and the most recent parameters for the model you previously set up saving for with setup_tf_saver
+    - Most general would be `locals()`
+    - "copy of the environment": `sess`?
+    - Model parameters: `ac_vars`, `targ_vars`
+
+Testing loggers
+
+- Let's not worry about the algorithm performing! Just check the logger functionality.
+- `save_config` is OK
+- After fixing bugs below, ran 10 episodes (yeah, return stayed in the negative 100s...) and it all looks OK, except for `save_state`: `Warning: could not pickle state_dict.`
+    - Currently `state_dict` is `{'trainable_variables': tf.trainable_variables()}`
+
+Of course, we _do_ have to deal with any critical bugs first
+
+- In `select_action`, `pi` is float32 while the noise is float64
+- Ah, let's commit just to separate any bug fixes.
+- `o2, r, done, _ = env.step(a)` throws `ValueError: setting an array element with a sequence`
+    - If I just go `env.step(a)` without assignment in the debug console it gives the same error
+    - From `env.step` doc: `a` should be "an action provided by the environment"
+    - We are giving it a `tf.Tensor`, so that's probably the issue
+    - What to do then?
+    - If I follow what the doc is saying and look at `env.action_space.sample()`, it is a numpy array - so maybe we just need to convert the action to numpy by `sess.run`?
+    - Like so: `a = sess.run(select_action(), feed_dict={x_ph: o})`
+        - Shape issues
+    - Alternative: run `pi` and then take away `tf.convert_to_tensor` on noise
+        - Had to reshape `o` to have batch dimension (of 1 in this case), then `np.squeeze` to undo it because we add the batch dimension for the actual batch later
+
+Next
+
+- The hard phase!
+- Worth checking over everything again
+- Add time-stamp directory to logging path so we don't overwrite
+- Find the simplest compatible environment
+- Test with at least three different random seeds
