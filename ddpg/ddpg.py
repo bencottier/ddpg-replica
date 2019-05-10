@@ -7,10 +7,16 @@ import core
 import gym
 import tensorflow as tf
 import numpy as np
+from spinup.utils.logx import Logger, EpochLogger
 
 
 def ddpg(env, discount, batch_size, polyak, num_episode, max_step,
-        seed=0, actor_critic=core.mlp_actor_critic, ac_kwargs=dict()):
+        seed=0, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(),
+        logdir=None):
+    # Create loggers
+    epoch_logger = EpochLogger(output_dir=logdir)
+    epoch_logger.save_config(locals())
+
     # Set random seed
     np.random.seed(seed)
     tf.random.set_random_seed(seed)
@@ -64,21 +70,26 @@ def ddpg(env, discount, batch_size, polyak, num_episode, max_step,
     # Start up a session
     sess = tf.Session()
     sess.run(tf.global_variables_initializer())
+    input_dict = {'x': x_ph, 'a': a_ph, 'x2': x2_ph, 'r': r_ph, 'd': d_ph}
+    output_dict = {'q_loss': q_loss, 'pi_loss': pi_loss}
+    epoch_logger.setup_tf_saver(sess, input_dict, output_dict)
 
     def select_action():
         return pi + tf.convert_to_tensor(process.sample())
 
-    def step():
+    def episode():
         """
-        Execute a time step in training.
+        Execute an episode in training.
         """
         # Receive initial observation state
         o = env.reset()
+        ret = 0  # return of episode
         for t in range(max_step):
             # Select action according to the current policy and exploration noise
             a = select_action()
             # Execute action and observe reward and new state
             o2, r, done, _ = env.step(a)
+            ret += r
             transition_t = (o, a, r, o2, done)
             # Store transition in buffer
             if len(buffer) < max_buffer_size:
@@ -91,20 +102,31 @@ def ddpg(env, discount, batch_size, polyak, num_episode, max_step,
                     [np.array([tr[i] for tr in transitions]) for i in range(5)]
             # Run training ops
             feed_dict = {x_ph: x_batch, a_ph: a_batch, x2_ph: x2_batch, r_ph: r_batch, d_ph: d_batch}
-            q_loss, pi_loss = sess.run([critic_minimize, actor_minimize], feed_dict=feed_dict)
+            ops = [critic_minimize, actor_minimize, q_loss, pi_loss]
+            _, _, q_loss, pi_loss = sess.run(ops, feed_dict=feed_dict)
             # Target networks update automatically through the graph
             # Advance the stored state
             o = o2
             if done:
                 break
-        # TODO return stats?
+            epoch_logger.store(QLoss=q_loss)
+            epoch_logger.store(PiLoss=pi_loss)
+        epoch_logger.store(Return=ret)
+        epoch_logger.store(Steps=t)
 
     # Training loop
-    for episode in range(num_episode):
+    for ep in range(num_episode):
         # Initalise random process for action exploration
         process.reset()
-        step()
-        # TODO Reporting
+        episode()
+        # Reporting
+        epoch_logger.log_tabular('QLoss')
+        epoch_logger.log_tabular('PiLoss')
+        epoch_logger.log_tabular('Return')
+        epoch_logger.log_tabular('Steps')
+        epoch_logger.dump_tabular()
+        # Save state of training variables (use itr=ep to not overwrite)
+        epoch_logger.save_state({'ac_vars': ac_vars, 'targ_vars': targ_vars})
 
     env.close()
 
