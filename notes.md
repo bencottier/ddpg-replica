@@ -368,4 +368,22 @@ Read-through
 
 Adding time-stamp directory to logging path
 
+Test runs
 
+- Just ran a couple on seed=2, and they give totally different results. So seeds don't seem to be working.
+
+Test environments
+
+- I think `HalfCheetah-v2` is considered fairly difficult.
+- We need continuous control
+- What are the easiest continuous control environments for DDPG?
+    - `MountainCarContinuous-v0`?
+        - May actually be pretty hard - has limited time steps to get it right
+    - `Pendulum-v0`
+        - It's simple and fast to run
+        - The more rewarding states are less and less stable, so that's an argument for difficulty
+        - Reward is sensitive, dynamics are fast
+
+Next
+
+- Continue scoping difficulty of environments for initial testing
