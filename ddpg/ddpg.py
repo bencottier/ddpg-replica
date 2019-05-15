@@ -9,12 +9,19 @@ from spinup.utils.logx import Logger, EpochLogger
 import tensorflow as tf
 import numpy as np
 import random
+import time
 
 
-def ddpg(env, discount, batch_size, polyak, num_episode, max_step,
+def ddpg(env_name, discount, batch_size, polyak, num_episode, max_step,
         seed=0, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(),
         logdir=None):
+    # Create environment
+    env = gym.make(env_name)
+
     # Create loggers
+    if logdir is not None:
+        time_string = time.strftime('%Y-%m-%d-%H-%M-%S')
+        logdir = f'{logdir}/{time_string}_ddpg_{env_name.lower()}_s{seed}'
     epoch_logger = EpochLogger(output_dir=logdir)
     epoch_logger.save_config(locals())
 
