@@ -19,6 +19,7 @@ def ddpg(env, discount, batch_size, polyak, num_episode, max_step,
     epoch_logger.save_config(locals())
 
     # Set random seed
+    random.seed(seed)
     np.random.seed(seed)
     tf.random.set_random_seed(seed)
 
@@ -44,7 +45,7 @@ def ddpg(env, discount, batch_size, polyak, num_episode, max_step,
 
     # Use "done" variable to cancel future value when at end of episode
     # The stop_gradient means inputs to the operation will not factor into gradients
-    backup = tf.stop_gradient(r_ph + d_ph * discount * q_pi_targ)
+    backup = tf.stop_gradient(r_ph + (1 - d_ph) * discount * q_pi_targ)
     q_loss = tf.reduce_mean((backup - q)**2)
     pi_loss = -tf.reduce_mean(q_pi)
 
@@ -72,7 +73,8 @@ def ddpg(env, discount, batch_size, polyak, num_episode, max_step,
     sess = tf.Session()
     sess.run(tf.global_variables_initializer())
     input_dict = {'x': x_ph, 'a': a_ph, 'x2': x2_ph, 'r': r_ph, 'd': d_ph}
-    output_dict = {'q_loss': q_loss, 'pi_loss': pi_loss}
+    output_dict = {'critic_minimize': critic_minimize, 'actor_minimize': actor_minimize, 
+            'q_loss': q_loss, 'pi_loss': pi_loss}
     epoch_logger.setup_tf_saver(sess, input_dict, output_dict)
 
     def select_action(a_pi):
@@ -109,10 +111,10 @@ def ddpg(env, discount, batch_size, polyak, num_episode, max_step,
             # Target networks update automatically through the graph
             # Advance the stored state
             o = o2
-            if done:
-                break
             epoch_logger.store(QLoss=q_loss_eval)
             epoch_logger.store(PiLoss=pi_loss_eval)
+            if done:
+                break
         epoch_logger.store(Return=ret)
         epoch_logger.store(Steps=t)
 

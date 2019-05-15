@@ -37,7 +37,7 @@ def placeholders(*shapes):
 
 def mlp(x, hidden_sizes, activation, output_activation=None):
     """
-    Create an multi-layer perceptron network.
+    Create a multi-layer perceptron network.
 
     Arguments:
         x: Tensor. Input to the network.
@@ -72,7 +72,7 @@ def mlp_actor_critic(x, a, action_space, hidden_sizes=(400, 300), activation=tf.
             q: critic or action-value network, taking (x, a) as input.
             q_pi: critic or action-value network, taking (x, pi) as input.
     """
-    act_dim = a.shape[1]
+    act_dim = action_space.shape[0]
     act_limit = action_space.high
     hidden_sizes = list(hidden_sizes)
     with tf.variable_scope('pi'):

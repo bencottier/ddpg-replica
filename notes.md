@@ -337,3 +337,35 @@ Next
 - Add time-stamp directory to logging path so we don't overwrite
 - Find the simplest compatible environment
 - Test with at least three different random seeds
+
+## 2019.05.15
+
+Read-through
+
+- Add built-in `random` seed setting
+- Using `a.shape[1]` in `mlp_actor_critic` is actually a TF object: `Dimension(6)`. So combining this with `hidden_sizes` gives [400, 300, Dimension(6)]. I wonder if this is a problem? The output shape is OK.
+    - Switching to `action_space.shape[0]` since it seems safer
+- Ohhhohohoho: `backup = tf.stop_gradient(r_ph + d_ph * discount * q_pi_targ)`
+    - We want future value to go to 0 when we are done.
+    - `d_ph` is True when we are done. Opposite!
+    - `(1 - d_ph)` is what we want here. Crucial.
+- Do we need an axis on these?
+
+    ```
+    q_loss = tf.reduce_mean((backup - q)**2)
+    pi_loss = -tf.reduce_mean(q_pi)
+    ```
+
+    - No: Q is 1D and we want to average over the batch
+    - Would it be more generally correct to specify an axis? I don't know. If we are only talking about Q then I think it should always be 1D for most (all?) SOTA algorithms today. Anyway, I'm not trying to be as general/abstract as possible in this implementation.
+- Hmm, so I know there were decent reasons to make `buffer` a Python list but the appending might be fairly slow. Then again, if all these Tensors are just stored using references, maybe not. Besides, I doubt it is a major time sink in the overall algorithm.
+- I think `critic_minimize, actor_minimize` should be added to the logger TF saver, but this shouldn't affect the algorithm
+- Do we sample from the buffer with replacement?
+    - How much difference would it make to have a small probability of duplicate samples?
+    - If we are using the built-in `random.choice` we can only draw one at a time anyway
+- It's worth checking the process noise magnitude relative to the action - this might vary significantly from problem to problem
+- Move log calls before break condition in episode loop (we want to record loss on the last time step too)
+
+Adding time-stamp directory to logging path
+
+
