@@ -387,3 +387,35 @@ Test environments
 Next
 
 - Continue scoping difficulty of environments for initial testing
+
+## 2019.05.17
+
+Environment for testing
+
+- Ok, what we're going to do is run spinningup DDPG from terminal on some environments and get a sense of relative performance
+    - HalfCheetah-v2 seed 0 10 20
+        - Erm, what is the stopping condition? It's gone 35 epochs on the first seed at time of writing. Don't tell me it's going up to 3e6...
+    - Insights
+        - It takes a long time to git gud. The jump from large negative to large positive return is relatively quick (e.g. over two epochs), and takes e.g. 8 epochs
+        - We should have a test procedure
+        - Once the return has scaled up to a large positive value (e.g. 2e3), standard deviation on return reduces a lot over time (seed 0), e.g. ~1e3 to ~1e2 or ~1e1.
+- Useful page https://spinningup.openai.com/en/latest/spinningup/bench.html
+    - It seems better to try an environment where DDPG has less variance and a higher lower-bound on performance
+    - Benchmark qualities
+        - HalfCheetah: fairly steady, high lower bound
+        - Hopper: a bit volatile, moderate lower bound
+        - Walker: a bit volatile, moderate lower bound
+        - Swimmer: fairly steady, high lower bound
+        - Ant: a bit volatile, low lower bound
+        - Ok seems like HalfCheetah is relatively OK in the continuous control space.
+    - Exemplar-ness
+        - We need the test procedure for on-policy evaluation. Gosh, OF COURSE. Training is on a random batch from the buffer, it could be really old, bad actions!
+        - 10 random seeds
+        - Test every 10,000 steps 10 times on noise-free, deterministic, current policy
+        - Batch size 100
+        - I am skeptical of the paper's buffer size of 1 million if the benchmarks run ~million iteracts. But I'm not sure. Maybe the benefit of off-policy interactions increases without bound, and the buffer size is just a practical measure?
+    - DDPG HalfCheetah benchmark has std of about 2000 in converged region. So given my current test run has std go down to ~1e2, the source of this high std seems to be the between-seeds variance.
+
+Next
+
+- Implement test procedure
