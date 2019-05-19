@@ -41,6 +41,7 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
     d_ph = tf.placeholder(tf.float32, shape=(None,))
 
     # Initalise random process for action exploration
+    # TODO specify action shape
     process = core.OrnsteinUhlenbeckProcess(theta=0.15, sigma=0.2)
 
     # Build main computation graph
@@ -129,6 +130,26 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
                 ret = 0
                 o = env.reset()
 
+    def test():
+        # Run a few episodes for statistical power
+        for _ in range(10):
+            t = 0
+            ret = 0
+            done = False
+            o = env.reset()
+            while not done:
+                # Select action according to the current policy
+                a = np.squeeze(sess.run(pi, feed_dict={x_ph: o.reshape([1, -1])}), axis=0)
+                # Execute action and observe reward and new state
+                o2, r, done, _ = env.step(a)
+                t += 1
+                ret += r
+                # Advance the stored state
+                o = o2
+            # Log stats
+            epoch_logger.store(TestReturn=ret)
+            epoch_logger.store(TestEpSteps=t)
+
     # Training loop
     total_steps = 0
     for epoch in range(epochs):
@@ -138,10 +159,14 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
         train_epoch()
         total_steps += steps_per_epoch
         epoch_logger.store(TotalSteps=total_steps)
+        if epoch % 2 == 0:
+            test()
         # Reporting
         epoch_logger.log_tabular('Epoch', average_only=True)
         epoch_logger.log_tabular('Return', with_min_and_max=True)
+        epoch_logger.log_tabular('TestReturn', with_min_and_max=True)
         epoch_logger.log_tabular('EpSteps', average_only=True)
+        epoch_logger.log_tabular('TestEpSteps', average_only=True)
         epoch_logger.log_tabular('TotalSteps', average_only=True)
         epoch_logger.log_tabular('QLoss', average_only=True)
         epoch_logger.log_tabular('PiLoss', average_only=True)
