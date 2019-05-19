@@ -16,5 +16,5 @@ if __name__ == '__main__':
     #     obs, rwd, done, info = env.step(env.action_space.sample()) # take a random action
     # env.close()
 
-    ddpg(env_name='Pendulum-v0', discount=0.99, batch_size=64, polyak=0.001, 
-            num_episode=50, max_step=5000, logdir='out', seed=0)
+    ddpg(env_name='HalfCheetah-v2', discount=0.99, batch_size=64, polyak=0.001, 
+            epochs=50, steps_per_epoch=5000, logdir='out', seed=0)

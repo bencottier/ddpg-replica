@@ -12,7 +12,7 @@ import random
 import time
 
 
-def ddpg(env_name, discount, batch_size, polyak, num_episode, max_step,
+def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
         seed=0, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(),
         logdir=None):
     # Create environment
@@ -87,26 +87,28 @@ def ddpg(env_name, discount, batch_size, polyak, num_episode, max_step,
     def select_action(a_pi):
         return a_pi + process.sample()
 
-    def episode():
+    def train_epoch():
         """
-        Execute an episode in training.
+        Execute an epoch of training.
         """
         # Receive initial observation state
-        o = env.reset()
+        t = 0
         ret = 0  # return of episode
-        for t in range(max_step):
+        o = env.reset()
+        for step in range(steps_per_epoch):
             # Select action according to the current policy and exploration noise
             a_pi = np.squeeze(sess.run(pi, feed_dict={x_ph: o.reshape([1, -1])}), axis=0)
             a = select_action(a_pi)
             # Execute action and observe reward and new state
             o2, r, done, _ = env.step(a)
+            t += 1
             ret += r
             transition_t = (o, a, r, o2, done)
             # Store transition in buffer
             if len(buffer) < max_buffer_size:
                 buffer.append(transition_t)
             else:
-                buffer[t % max_buffer_size] = transition_t
+                buffer[step % max_buffer_size] = transition_t  # TODO global step or some other index
             # Sample a random minibatch of transitions from buffer
             transitions = [random.choice(buffer) for _ in range(batch_size)]
             [x_batch, a_batch, r_batch, x2_batch, d_batch] = \
@@ -121,22 +123,28 @@ def ddpg(env_name, discount, batch_size, polyak, num_episode, max_step,
             epoch_logger.store(QLoss=q_loss_eval)
             epoch_logger.store(PiLoss=pi_loss_eval)
             if done:
-                break
-        epoch_logger.store(Return=ret)
-        epoch_logger.store(Steps=t)
+                epoch_logger.store(Return=ret)
+                epoch_logger.store(EpSteps=t)
+                t = 0
+                ret = 0
+                o = env.reset()
 
     # Training loop
-    for ep in range(num_episode):
-        epoch_logger.store(Epoch=ep+1)
+    total_steps = 0
+    for epoch in range(epochs):
+        epoch_logger.store(Epoch=epoch+1)
         # Initalise random process for action exploration
         process.reset()
-        episode()
+        train_epoch()
+        total_steps += steps_per_epoch
+        epoch_logger.store(TotalSteps=total_steps)
         # Reporting
         epoch_logger.log_tabular('Epoch', average_only=True)
-        epoch_logger.log_tabular('Steps', average_only=True)
-        epoch_logger.log_tabular('Return', average_only=True)
-        epoch_logger.log_tabular('QLoss')
-        epoch_logger.log_tabular('PiLoss')
+        epoch_logger.log_tabular('Return', with_min_and_max=True)
+        epoch_logger.log_tabular('EpSteps', average_only=True)
+        epoch_logger.log_tabular('TotalSteps', average_only=True)
+        epoch_logger.log_tabular('QLoss', average_only=True)
+        epoch_logger.log_tabular('PiLoss', average_only=True)
         epoch_logger.dump_tabular()
         # Save state of training variables (use itr=ep to not overwrite)
         # TODO: investigate cause of `Warning: could not pickle state_dict.`
