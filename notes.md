@@ -393,7 +393,7 @@ Next
 Environment for testing
 
 - Ok, what we're going to do is run spinningup DDPG from terminal on some environments and get a sense of relative performance
-    - HalfCheetah-v2 seed 0 10 20
+    - `python -m spinup.run ddpg --env_name HalfCheetah-v2 --seed 0 10 20`
         - Erm, what is the stopping condition? It's gone 35 epochs on the first seed at time of writing. Don't tell me it's going up to 3e6...
     - Insights
         - It takes a long time to git gud. The jump from large negative to large positive return is relatively quick (e.g. over two epochs), and takes e.g. 8 epochs
@@ -419,3 +419,42 @@ Environment for testing
 Next
 
 - Implement test procedure
+
+## 2019.05.19
+
+Implementing test procedure
+
+- Ok, let's get a total step count happening
+- Changing to a epoch-by-steps configuration instead of episodes
+    - The implication seems to be that we don't quit when `done`, and epochs generally run unevenly over episodes. What are the implications of this? Assumption of infinite horizon? No, there is a discount
+    - Bug: first episode is 1000 steps long, remaining episodes are 1 step
+        - Ah, I need to do `o = env.reset()` in `done` condition too
+- Onward
+    - Huh. I kept the run that was verifying the new structure going up to 28 epochs, and as far as I could see it was all bad except one epoch (14) with return 385 to 691, 483 +- 110. Wow. I guess we have to take it as a fluke, or unstable training.
+    - Anyway, I now have a test function.
+- Testing it out
+    - Logging works
+    - Why would we run 10 trajectories (assuming =episodes) if it is a deterministic policy? Are the initial conditions of the environment randomised? The dynamics?
+    - Again, random seeds don't seem to (at least solely) determine the results here.
+        - Setting the `gym` random seed might fix it
+    - Performance is bad, in fact it may have gotten worse on average, but I haven't plotted
+
+Other
+
+- Noticed exploration noise is a scalar - we need to specify the shape as that of the action
+- Questioned `-tf.reduce_mean(q_pi)` vs. `-tf.reduce_mean(q)` but became confident again. The graph runs based on the placeholder feeds, and we are feeding in the buffer-sampled state $s_i$. The paper says in the policy loss, the policy action is substituted in Q.
+
+Next
+
+- We're at a really difficult stage now. It's hard to know the best place to start in making this work.
+    - If that's the case, the best we can do is work through possibilities/verify functionality in turn.
+- First of all just fix the seed and exploration noise issues. Then run 50 epochs on at least 3 seeds, and plot the results, so we can be confident whether it is otherwise working.
+- I'm uncertain whether we should start really probing under-the-hood, or keep trying variants and additions to the hyperparameters, algorithm.
+    - Hyperparameters seem least likely to cause trouble here. AFAIK they match the paper. They don't seem extreme.
+    - The scale of the exploration noise maybe needs to be scaled by the action limits
+    - Initial uniform random exploration could be important, but I don't think the paper mentions it. Based on that it seems useful but not crucial to get a positive result. But you never know, this is DRL.
+    - Whatever we do, we gotta maintain that scientific mindset. What do I _observe_? What are all the possible explanations for the observation that I can think of? How likely are these?
+- Things I'm unsure about
+    - How terminal states affect objectives and learning
+    - The importance of buffer size
+    - The most sensible test procedure, and why trajectories vary for a deterministic policy
