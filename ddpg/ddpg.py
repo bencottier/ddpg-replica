@@ -29,6 +29,7 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
     random.seed(seed)
     np.random.seed(seed)
     tf.random.set_random_seed(seed)
+    env.seed(seed)
 
     # Initialise variables
     action_space = env.action_space
@@ -41,8 +42,7 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
     d_ph = tf.placeholder(tf.float32, shape=(None,))
 
     # Initalise random process for action exploration
-    # TODO specify action shape
-    process = core.OrnsteinUhlenbeckProcess(theta=0.15, sigma=0.2)
+    process = core.OrnsteinUhlenbeckProcess(theta=0.15, sigma=0.2, shape=(act_dim,))
 
     # Build main computation graph
     with tf.variable_scope('actor-critic'):
@@ -159,8 +159,7 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
         train_epoch()
         total_steps += steps_per_epoch
         epoch_logger.store(TotalSteps=total_steps)
-        if epoch % 2 == 0:
-            test()
+        test()
         # Reporting
         epoch_logger.log_tabular('Epoch', average_only=True)
         epoch_logger.log_tabular('Return', with_min_and_max=True)
