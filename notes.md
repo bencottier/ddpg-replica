@@ -458,3 +458,46 @@ Next
     - How terminal states affect objectives and learning
     - The importance of buffer size
     - The most sensible test procedure, and why trajectories vary for a deterministic policy
+
+## 2019.05.21
+
+Setting `gym` random seed: `env.seed(seed)`
+
+- Test (3 epochs, seed=0)
+    - Run 1: 2019-05-21-20-28-44_ddpg_halfcheetah-v2_s0
+    - Run 2: 2019-05-21-20-33-13_ddpg_halfcheetah-v2_s0
+    - Nope (e.g. average return epoch 1 -474.3441 vs. -449.04657)
+- seed=1234: nope
+- Ok, I need to get serious. Based on some googling this is a fiddly procedure. Let's make a minimal test and build it up.
+    - Separate script checking that simple lists/arrays replicate
+    - `random`: check
+    - `np.random`: check
+    - `tf.random`: check
+    - `gym`: check
+    - Ok, so maybe the problem is doing random TF ops in different scopes/files
+        - Same file, different scope first: check
+        - Same file, function scope: check
+        - As above, plus `tf.layers.dense` with `np.random.normal` fed input: check
+        - Different file, else as above: check
+- Back to main
+    - First action in training, evaluated
+        - Run 1: [-0.00724385  0.00492079  0.03382656  0.01570793 -0.00460604  0.00858583]
+        - Run 2: [-0.00724385  0.00492079  0.03382656  0.01570793 -0.00460604  0.00858583]
+        - Huh, interesting. So we have _some_ replication. Where does it diverge?
+    - First `o2` in training, evaluated
+        - Run 1: [-0.08694839  0.09207987  0.00348153  0.01589041  0.0017272 ...
+        - Run 2: [-0.08694839  0.09207987  0.00348153  0.01589041  0.0017272 ...
+    - Pick this up next time
+
+Specifying shape of exploration noise
+
+- Should the `np.random.randn()` in `sample` have a dimension?
+    - I think so. It makes sense to have independent randomness on each component of the action.
+- Should it be `(None, act_dim)` or `(act_dim,)`?
+    - The latter, because we use it on a single action. But all the vector values are independent, so if we ever used it in a batch we could go `noise[0]`
+- Test
+    - Looks fine
+
+Next
+
+- Continue investigating where pseudorandomness diverges in our seed setup

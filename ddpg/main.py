@@ -17,4 +17,4 @@ if __name__ == '__main__':
     # env.close()
 
     ddpg(env_name='HalfCheetah-v2', discount=0.99, batch_size=64, polyak=0.001, 
-            epochs=50, steps_per_epoch=5000, logdir='out', seed=0)
+            epochs=2, steps_per_epoch=1000, logdir='out', seed=1234)
