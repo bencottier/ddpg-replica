@@ -19,10 +19,12 @@ class OrnsteinUhlenbeckProcess(object):
         self.x0 = np.zeros(self.shape, dtype=np.float32) if x0 is None else x0
         self.reset()
 
-    def sample(self):
-        self.x += self.theta * (self.mu - self.x) * self.dt + \
-                self.sigma * self.sqrtdt * np.random.randn()
-        return self.x
+    def sample(self, update=True):
+        x = self.x + self.theta * (self.mu - self.x) * self.dt + \
+                self.sigma * self.sqrtdt * np.random.normal(size=self.shape)
+        if update:
+            self.x = x
+        return x
 
     def reset(self):
         self.x = self.x0
