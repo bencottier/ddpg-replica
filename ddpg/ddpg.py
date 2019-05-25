@@ -78,7 +78,9 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
     buffer = []
 
     # Start up a session
-    sess = tf.Session()
+    session_conf = tf.ConfigProto(intra_op_parallelism_threads=1,
+            inter_op_parallelism_threads=1)
+    sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
     sess.run(tf.global_variables_initializer())
     input_dict = {'x': x_ph, 'a': a_ph, 'x2': x2_ph, 'r': r_ph, 'd': d_ph}
     output_dict = {'critic_minimize': critic_minimize, 'actor_minimize': actor_minimize, 
@@ -100,6 +102,7 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
             # Select action according to the current policy and exploration noise
             a_pi = np.squeeze(sess.run(pi, feed_dict={x_ph: o.reshape([1, -1])}), axis=0)
             a = select_action(a_pi)
+            # a = env.action_space.sample()
             # Execute action and observe reward and new state
             o2, r, done, _ = env.step(a)
             t += 1
