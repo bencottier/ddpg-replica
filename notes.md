@@ -457,7 +457,7 @@ Next
 - Things I'm unsure about
     - How terminal states affect objectives and learning
     - The importance of buffer size
-    - The most sensible test procedure, and why trajectories vary for a deterministic policy
+    - The most sensible test procedure, and why trajectories would vary for a deterministic policy
 
 ## 2019.05.21
 
@@ -501,3 +501,103 @@ Specifying shape of exploration noise
 Next
 
 - Continue investigating where pseudorandomness diverges in our seed setup
+
+## 2019.05.25
+
+Investigating where pseudorandomness diverges in our seed setup
+
+- Ok so last time
+    - Testing whether the random seed gave consistent results
+    - Created a separate file to test this, emulating some of the operations in the actual program
+    - That seemed all good, so we moved to tests based on matching variable values in the actual program
+    - Matches were found up to the assignment of `o2` in the training loop. We haven't found a case where the results become inconsistent (i.e. diverge) - we just know that they are inconsistent at the output statistics level.
+- Follow-the-seed
+    - Working seed: 1234
+    - Let's test `o2` again
+        - Run 1: `[-0.08694839,  0.09207987,  0.00348153,  0.01589041,  0.0017272 ...`
+        - Run 2: `[-0.08694839,  0.09207987,  0.00348153,  0.01589041,  0.0017272 ...`
+        - Yep
+    - Let's compare `o2` in the final iteration (`step==steps_per_epoch-1`)
+        - Run 1: `[-5.77279067e-01,  3.30225890e+00, -3.51571425e-01,  5.34152396e-01 ...`
+        - Run 2: `[-5.77277104e-01,  3.30223145e+00, -3.55792556e-01,  5.28771697e-01 ...`
+        - Run 3: `[-5.77279480e-01,  3.30226571e+00, -3.51553730e-01,  5.34153603e-01 ...`
+        - Bingo
+        - Interesting that the values are very close though
+    - `o2` in second iteration (`step==1`)
+        - Run 1: `[-0.10768196,  0.06230653, -0.02311073,  0.02713979,  0.0832682 ...`
+        - Run 2: `[-0.10769117,  0.06231164, -0.02317908,  0.02720147,  0.08327151 ...`
+        - Bingo
+    - Hypothesis: divergence is cause by the parameters in the MLPs being initialised differently
+    - Test: use `env.action_space.sample` for action instead of MLPs (this only tests the actor network)
+        - `step==1`
+            - Run 1: `[-1.16243351e-01, -1.27413451e-02, -2.81861979e-02,  4.07141069e-01 ...`
+            - Run 2: `[-1.16243351e-01, -1.27413451e-02, -2.81861979e-02,  4.07141069e-01 ...`
+            - Run 3: `[-1.16243351e-01, -1.27413451e-02, -2.81861979e-02,  4.07141069e-01 ...`
+            - Same
+        - `step==steps_per_epoch-1`
+            - Run 1: `[-8.57854903e-02, -6.22277843e-02,  1.32189816e-03,  1.77853597e-02 ...`
+            - Run 2: `[-8.57854903e-02, -6.22277843e-02,  1.32189816e-03,  1.77853597e-02 ...`
+            - Same
+    - Ok, the test does not narrow down enough yet. It does suggest that `gym` is not contributing to the problem.
+    - To narrow down further, let's test the unnoisy action, i.e. removing `process.sample()` from `select_action()`
+        - `step==steps_per_epoch-1`
+            - Run 1: `[-5.77281139e-01,  3.30230450e+00, -5.13863239e-01,  5.02119414e-01 ...`
+            - Run 2: `[-5.77275336e-01,  3.30221288e+00, -5.09267961e-01,  5.32657678e-01 ...`
+            - Same
+        - Ok, so `pi` is a problem.
+- The evidence points to the MLP parameters being the source of divergence. This means I need to review how to ensure consistent initialisation/graph in TensorFlow.
+    - SO#38469632 suggests setting an operation-level seed for each operation that involves randomness. Comments say this was not used in a TensorFlow example, and it may have been a past bug that is now fixed.
+        - Another answer says you should completely restart the Python interpreter every run, or call `tf.reset_default_graph()` at the start.
+    - I see this pattern around (e.g. Keras FAQ)
+    
+        ```
+        session_conf = tf.ConfigProto(intra_op_parallelism_threads=1,
+                              inter_op_parallelism_threads=1)
+        tf.set_random_seed(1234)
+        sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
+        ```
+
+        - The first line is to set single-threading because multi-thread is a potential source of non-reproducibility
+
+    - Also this, as the first seed setting:
+
+        ```
+        import os
+        os.environ['PYTHONHASHSEED']=str(seed_value)
+        ```
+
+      "This is necessary in Python 3.2.3 onwards to have reproducible behavior for certain hash-based operations (e.g., the item order in a set or a dict..." - Keras FAQ
+
+        - I don't see how that would be problematic in our case...I don't think e.g. item order in a dict would determine these results
+        - Keras FAQ doesn't use above code, instead suggesting `PYTHONHASHSEED=0` before `python` in the terminal command
+- Trying out solutions
+    - First, let's try `graph=tf.get_default_graph()` as an argument to `Session`
+        - Run 1: `[-5.77274257e-01,  3.30220153e+00, -5.13445612e-01,  5.27330560e-01 ...]`
+        - Run 2: `[-5.77276003e-01,  3.30221998e+00, -5.08975840e-01,  5.32709864e-01 ...]`
+        - Different
+    - Now, let's try using that `config` argument to the session
+        - Run 1: `[-3.21516184e-01,  7.35947181e-01, -4.74953472e-01, -4.64066919e-01 ...]`
+        - Run 2: `[-3.21516184e-01,  7.35947181e-01, -4.74953472e-01, -4.64066919e-01 ...]`
+        - Run 3: `[-3.21516184e-01,  7.35947181e-01, -4.74953472e-01, -4.64066919e-01 ...]`
+        - Stop debugger (rather then restart)
+        - Run 4: `[-3.21516184e-01,  7.35947181e-01, -4.74953472e-01, -4.64066919e-01 ...]`
+        - Restart computer
+        - Run 5: `[-3.21516184e-01,  7.35947181e-01, -4.74953472e-01, -4.64066919e-01 ...]`
+    - There you go!
+- I am surprised that configuring the threads to single is the solution. It seems the MLP initialisation is consistent under these conditions after all.
+- This raises the question: is it at all possible to get reliably reproducible results with multiple threads?
+- Bringing back `process.sample()` in `select_action`
+    - Run 1: `[-0.00701224,  1.33773652, -0.44480645, -0.42450498, ...]`
+    - Run 2: `[-0.00701224,  1.33773652, -0.44480645, -0.42450498, ...]`
+    - Same
+- Checking for match on output results (i.e. `progress.txt`)
+    - This is currently 2 epochs, 1000 steps per epoch
+    - Match!
+- Change seed from `1234` to `0`
+    - Result totally differs from `1234`
+    - Results match on multiple runs
+- I am now confident that for any consistent random seed we get consistent results
+
+Next
+
+- Run the current implementation on 10 different random seeds, 50 epochs, to get a reliable sense of the current performance and the issues that may be present.
