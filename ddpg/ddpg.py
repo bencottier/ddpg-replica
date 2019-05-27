@@ -15,6 +15,9 @@ import time
 def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
         seed=0, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(),
         logdir=None):
+    # Do not reuse old graph (in case of persistence over multiple calls)
+    tf.reset_default_graph()
+
     # Create environment
     env = gym.make(env_name)
 
@@ -178,6 +181,7 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
         # epoch_logger.save_state({'trainable_variables': tf.trainable_variables()})
 
     env.close()
+    sess.close()
 
 
 if __name__ == '__main__':
