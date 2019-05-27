@@ -601,3 +601,9 @@ Investigating where pseudorandomness diverges in our seed setup
 Next
 
 - Run the current implementation on 10 different random seeds, 50 epochs, to get a reliable sense of the current performance and the issues that may be present.
+
+## 2019.05.27
+
+Running the current implementation on 10 different random seeds, 50 epochs
+
+
