@@ -606,4 +606,30 @@ Next
 
 Running the current implementation on 10 different random seeds, 50 epochs
 
+## 2019.05.28
 
+Reviewing test results
+
+- Plot command (using Spinning Up again)
+
+    ```
+    python -m spinup.run plot ./out/test0 -x TotalSteps -y AverageReturn AverageTestReturn PiLoss QLoss
+    ```
+
+    - I modified SU's `plot.py` to use the stat names I use. In future I should probably just conform to their stat names.
+
+- Observations
+    - For reference: this is HalfCheetah-v2
+    - Average train return is fairly flat. Slight overall upward trend from -500 to -400, but we can't be at all confident in this given the variance and low sample size (which remember, is 10).
+    - Average test return is less flat than train. Slight overall upward trend from -600 to -400, but still not confident that this is meaningful. Judging by the variance shading, there is at least one case where it starts and ends at about the same return.
+    - Test return has about the same overall variance between runs as train return.
+    - Test return has a higher variance over time than train return. In lay terms, it is more spiky.
+    - Average policy loss is relatively smooth, with a slight overall downward trend from 0.2 to 0.1. Variance between runs is relatively high (std about 0.2). In some cases loss goes negative.
+        - I think it is invalid to interpret policy loss as a series. Each loss value is only meaningful at the time step is is computed, because the feedback loops between pi, the environment and q will change the meaning of the loss at each step.
+    - Average Q loss is relatively smooth, with an overall upward trend from 0.02 to 0.06. Variance between runs is relatively high (std about 0.02) and grows over time.
+        - I expected this to decrease over time. Q is trained on the mean-squared Bellman error. Then again, this depends on pi through `q_pi_targ`, and I don't know what could go wrong with pi.
+        - Would it be feasible to isolate training of Q by using a random policy, instead of pi? Removing pi from the picture should make it easier to verify whether Q is training correctly.
+
+Next
+
+- Listing out all possible problems with the implementation
