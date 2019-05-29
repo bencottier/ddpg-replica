@@ -61,9 +61,9 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
     pi_loss = -tf.reduce_mean(q_pi)
 
     # Optimisers
-    opt_actor = tf.train.AdamOptimizer(learning_rate=1e-4, name='opt_actor')
     opt_critic = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-2, learning_rate=1e-3,
                                                name='opt_critic')
+    opt_actor = tf.train.AdamOptimizer(learning_rate=1e-4, name='opt_actor')
     # Update critic by minimizing the loss
     critic_minimize = opt_critic.minimize(q_loss)
     # Update the actor policy using the sampled policy gradient
@@ -93,14 +93,14 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
     def select_action(a_pi):
         return a_pi + process.sample()
 
-    def train_epoch():
+    def train_epoch(total_steps):
         """
         Execute an epoch of training.
         """
-        # Receive initial observation state
-        t = 0
-        ret = 0  # return of episode
-        o = env.reset()
+        t = 0  # episode time step
+        ret = 0  # episode return
+        process.reset()  # initalise random process for action exploration
+        o = env.reset()  # receive initial observation state
         for step in range(steps_per_epoch):
             # Select action according to the current policy and exploration noise
             a_pi = np.squeeze(sess.run(pi, feed_dict={x_ph: o.reshape([1, -1])}), axis=0)
@@ -109,13 +109,14 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
             # Execute action and observe reward and new state
             o2, r, done, _ = env.step(a)
             t += 1
+            total_steps += 1
             ret += r
             transition_t = (o, a, r, o2, done)
             # Store transition in buffer
             if len(buffer) < max_buffer_size:
                 buffer.append(transition_t)
             else:
-                buffer[step % max_buffer_size] = transition_t  # TODO global step or some other index
+                buffer[total_steps % max_buffer_size] = transition_t  # TODO global step or some other index
             # Sample a random minibatch of transitions from buffer
             transitions = [random.choice(buffer) for _ in range(batch_size)]
             [x_batch, a_batch, r_batch, x2_batch, d_batch] = \
@@ -134,8 +135,10 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
                 epoch_logger.store(EpSteps=t)
                 t = 0
                 ret = 0
+                process.reset()
                 o = env.reset()
-
+        return total_steps
+                
     def test():
         # Run a few episodes for statistical power
         for _ in range(10):
@@ -160,10 +163,7 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
     total_steps = 0
     for epoch in range(epochs):
         epoch_logger.store(Epoch=epoch+1)
-        # Initalise random process for action exploration
-        process.reset()
-        train_epoch()
-        total_steps += steps_per_epoch
+        total_steps = train_epoch(total_steps)
         epoch_logger.store(TotalSteps=total_steps)
         test()
         # Reporting
