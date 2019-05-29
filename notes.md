@@ -633,3 +633,52 @@ Reviewing test results
 Next
 
 - Listing out all possible problems with the implementation
+
+## 2019.05.29
+
+Possible problems with the implementation
+
+- Tensor dimensions are incorrect
+- Loss equations are incorrectly implemented
+    - The inputs that are fed in
+    - Target vs. actor-critic variables
+    - Use of `done` variable in backup
+    - Mean operation (axes?)
+- Target parameter updates incorrectly implemented
+    - Construction for graph
+    - Execution
+- Target parameters are not initialised to actor-critic parameters
+- Polyak parameter is too low (i.e. target networks track actor-critic too slowly)
+- Experience buffer is not implemented correctly
+- Experience buffer size is problematic
+- Transitions are incorrectly assigned or not stored correctly in buffer
+- Loss minimisation is not called correctly
+    - Review a standard code example for this
+    - I feel fairly confident that Q loss should trend down but we found it trends up. I'll give it a bit more thought and we can investigate this after the basic checks in this list.
+- Exploration noise is too high or too low in magnitude
+- Exploration noise is problematic in terms of its dynamics
+- MLPs are not constructed properly
+- Not executing all the operations that need to be executed in `sess.run`
+- Environment interaction and management in training loop is incorrect
+
+Known issues
+
+- Once buffer reaches capacity, under the current use of a Python list we need to track the total number of steps and use that to index the buffer, rather than `step`. We could move `total_steps` to the inner training loop and increment it one-by-one.
+- `process.reset()` (the exploration noise process) should be called each episode, not each epoch
+
+Fixing buffer indexing
+
+Moving and repeating `process.reset()`
+
+- Running this on seed 0. Whereas the seed 0 in the 10-seed test run matches an earlier seed 0 run, we are now getting completely different results. This indicates the random process resetting is in effect.
+
+Loss minimisation calls
+
+- Seem to be in order
+
+We could try visualising the computation graph in Tensorboard. That may help!
+
+Next
+
+- Visualise computation graph in Tensorboard
+- Plan a setup to train the critic on its own (with random actions)
