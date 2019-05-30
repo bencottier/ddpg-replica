@@ -81,9 +81,11 @@ def mlp_actor_critic(x, a, action_space, hidden_sizes=(400, 300), activation=tf.
         pi = act_limit * mlp(x, hidden_sizes+[act_dim], activation, tf.nn.tanh)
     with tf.variable_scope('q'):
         # Squeeze needed to avoid unintended TF broadcasting down the line
-        q = tf.squeeze(mlp(tf.concat([x, a], axis=1), hidden_sizes+[1], activation, None), axis=1)
+        q_net = mlp(tf.concat([x, a], axis=1), hidden_sizes+[1], activation, None)
+        q = tf.squeeze(q_net, axis=1, name='q')
     with tf.variable_scope('q', reuse=True):
-        q_pi = tf.squeeze(mlp(tf.concat([x, pi], axis=1), hidden_sizes+[1], activation, None), axis=1)
+        q_pi_net = mlp(tf.concat([x, pi], axis=1), hidden_sizes+[1], activation, None)
+        q_pi = tf.squeeze(q_pi_net, axis=1, name='q_pi')
     return pi, q, q_pi
 
 

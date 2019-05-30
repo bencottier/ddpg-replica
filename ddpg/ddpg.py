@@ -38,11 +38,11 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
     action_space = env.action_space
     act_dim = action_space.shape[0]
     obs_dim = env.observation_space.shape[0]
-    x_ph = tf.placeholder(tf.float32, shape=(None, obs_dim))
-    a_ph = tf.placeholder(tf.float32, shape=(None, act_dim))
-    x2_ph = tf.placeholder(tf.float32, shape=(None, obs_dim))
-    r_ph = tf.placeholder(tf.float32, shape=(None,))
-    d_ph = tf.placeholder(tf.float32, shape=(None,))
+    x_ph = tf.placeholder(tf.float32, shape=(None, obs_dim), name='obs')
+    a_ph = tf.placeholder(tf.float32, shape=(None, act_dim), name='act')
+    x2_ph = tf.placeholder(tf.float32, shape=(None, obs_dim), name='obs2')
+    r_ph = tf.placeholder(tf.float32, shape=(None,), name='rwd')
+    d_ph = tf.placeholder(tf.float32, shape=(None,), name='done')
 
     # Initalise random process for action exploration
     process = core.OrnsteinUhlenbeckProcess(theta=0.15, sigma=0.2, shape=(act_dim,))
@@ -56,18 +56,9 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
 
     # Use "done" variable to cancel future value when at end of episode
     # The stop_gradient means inputs to the operation will not factor into gradients
-    backup = tf.stop_gradient(r_ph + (1 - d_ph) * discount * q_pi_targ)
-    q_loss = tf.reduce_mean((backup - q)**2)
-    pi_loss = -tf.reduce_mean(q_pi)
-
-    # Optimisers
-    opt_critic = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-2, learning_rate=1e-3,
-                                               name='opt_critic')
-    opt_actor = tf.train.AdamOptimizer(learning_rate=1e-4, name='opt_actor')
-    # Update critic by minimizing the loss
-    critic_minimize = opt_critic.minimize(q_loss)
-    # Update the actor policy using the sampled policy gradient
-    actor_minimize = opt_actor.minimize(pi_loss)
+    backup = tf.stop_gradient(r_ph + (1 - d_ph) * discount * q_pi_targ, name='backup')
+    q_loss = tf.reduce_mean((backup - q)**2, name='q_loss')
+    pi_loss = -tf.reduce_mean(q_pi, name='pi_loss')
 
     # Target variable update
     # TODO Not sure if correct. Even if correct, it's not how I remember the baseline.
@@ -76,15 +67,32 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
     for i in range(len(targ_vars)):
         targ_vars[i] = targ_vars[i].assign(polyak * ac_vars[i] + (1 - polyak) * targ_vars[i])
 
+    # Optimisers
+    opt_critic = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-2, learning_rate=1e-3,
+                                               name='opt_critic')
+    opt_actor = tf.train.AdamOptimizer(learning_rate=1e-4, name='opt_actor')
+    # Update critic by minimizing the loss
+    critic_minimize = opt_critic.minimize(q_loss, name='critic_minimize')
+    # Update the actor policy using the sampled policy gradient
+    actor_minimize = opt_actor.minimize(pi_loss, name='actor_minimize')
+
     # Replay buffer
     max_buffer_size = 1000000
     buffer = []
+
+    # Create a file writer for logging
+    writer = tf.summary.FileWriter(logdir)
+    tf.summary.scalar('q_loss', q_loss)
+    merged_summary = tf.summary.merge_all()
 
     # Start up a session
     session_conf = tf.ConfigProto(intra_op_parallelism_threads=1,
             inter_op_parallelism_threads=1)
     sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
     sess.run(tf.global_variables_initializer())
+    # Add the model graph to TensorBoard
+    writer.add_graph(sess.graph)
+    # Save variables
     input_dict = {'x': x_ph, 'a': a_ph, 'x2': x2_ph, 'r': r_ph, 'd': d_ph}
     output_dict = {'critic_minimize': critic_minimize, 'actor_minimize': actor_minimize, 
             'q_loss': q_loss, 'pi_loss': pi_loss}
@@ -130,6 +138,9 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
             o = o2
             epoch_logger.store(QLoss=q_loss_eval)
             epoch_logger.store(PiLoss=pi_loss_eval)
+            # Generate summary and write to file
+            summ = sess.run(merged_summary, feed_dict=feed_dict)
+            writer.add_summary(summ, total_steps)
             if done:
                 epoch_logger.store(Return=ret)
                 epoch_logger.store(EpSteps=t)
