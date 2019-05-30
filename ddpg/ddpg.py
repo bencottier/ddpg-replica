@@ -54,6 +54,12 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
     with tf.variable_scope('target'):  # scope helps group the vars for target update
         _, _, q_pi_targ = actor_critic(x2_ph, a_ph, action_space, **ac_kwargs)
 
+    # Target variable initialisation
+    # TODO Not sure if correct. Even if correct, it's not how I remember the baseline.
+    ac_vars = [v for v in tf.trainable_variables() if 'actor-critic' in v.name]
+    targ_vars = [v for v in tf.trainable_variables() if 'target' in v.name]
+    targ_init = [targ_vars[i].assign(ac_vars[i]) for i in range(len(targ_vars))]
+
     # Use "done" variable to cancel future value when at end of episode
     # The stop_gradient means inputs to the operation will not factor into gradients
     backup = tf.stop_gradient(r_ph + (1 - d_ph) * discount * q_pi_targ, name='backup')
@@ -62,10 +68,8 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
 
     # Target variable update
     # TODO Not sure if correct. Even if correct, it's not how I remember the baseline.
-    ac_vars = [v for v in tf.trainable_variables() if 'actor-critic' in v.name]
-    targ_vars = [v for v in tf.trainable_variables() if 'target' in v.name]
-    for i in range(len(targ_vars)):
-        targ_vars[i] = targ_vars[i].assign(polyak * ac_vars[i] + (1 - polyak) * targ_vars[i])
+    targ_update = [targ_vars[i].assign(polyak * ac_vars[i] + (1 - polyak) * targ_vars[i]) \
+            for i in range(len(targ_vars))]
 
     # Optimisers
     opt_critic = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-2, learning_rate=1e-3,
@@ -133,7 +137,8 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
             feed_dict = {x_ph: x_batch, a_ph: a_batch, x2_ph: x2_batch, r_ph: r_batch, d_ph: d_batch}
             ops = [critic_minimize, actor_minimize, q_loss, pi_loss]
             _, _, q_loss_eval, pi_loss_eval = sess.run(ops, feed_dict=feed_dict)
-            # Target networks update automatically through the graph
+            # Update the target networks
+            sess.run(targ_update)
             # Advance the stored state
             o = o2
             epoch_logger.store(QLoss=q_loss_eval)
@@ -169,6 +174,9 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
             # Log stats
             epoch_logger.store(TestReturn=ret)
             epoch_logger.store(TestEpSteps=t)
+
+    # Initialise target networks
+    sess.run(targ_init)
 
     # Training loop
     total_steps = 0
