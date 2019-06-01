@@ -138,15 +138,7 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
             ops = [critic_minimize, actor_minimize, q_loss, pi_loss]
             _, _, q_loss_eval, pi_loss_eval = sess.run(ops, feed_dict=feed_dict)
             # Update the target networks
-
-            if total_steps <= 1:
-                targ_eval = sess.run(targ_init)
-            ac_eval = sess.run(ac_vars)
-            expected_targ_eval = [polyak*ac_eval[i] + (1-polyak)*targ_eval[i] for i in range(len(targ_eval))]
-            targ_eval = sess.run(targ_update)
-            for i in range(len(targ_eval)):
-                assert np.all(targ_eval[i] - expected_targ_eval[i] == 0)
-
+            sess.run(targ_update)
             # Advance the stored state
             o = o2
             epoch_logger.store(QLoss=q_loss_eval)
@@ -184,11 +176,7 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
             epoch_logger.store(TestEpSteps=t)
 
     # Initialise target networks
-    ac_init_eval = sess.run(ac_vars)
-    targ_init_eval = sess.run(targ_init)
-    # ac_init_eval = sess.run(ac_vars)
-    for i in range(len(targ_init_eval)):
-        assert np.all(targ_init_eval[i] - ac_init_eval[i] == 0)
+    sess.run(targ_init)
 
     # Training loop
     total_steps = 0

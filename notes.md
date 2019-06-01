@@ -763,7 +763,16 @@ Checking target op update
     - Initial `ac_eval[0][0, :3]`  : `[-0.05522674,  0.09458509, -0.06746653]`
     - Initial `targ_eval[0][0, :3]`: `[-0.05522674,  0.09458509, -0.06746653]`
     - Next `ac_eval[0][0, :3]`     : `[-0.0553144 ,  0.09448526, -0.06754046]`
-    - Next `targ_eval[0][0, :3]    : `[-0.05522683,  0.09458499, -0.0674666 ]`
+    - Next `targ_eval[0][0, :3]`   : `[-0.05522683,  0.09458499, -0.0674666 ]`
     - Yep, that checks out. Great!
+- Ok, stripping away that test code, let's see if we have different target update values if we don't call `sess.run(targ_init)`:
+    - Initial `ac_eval[0][0, :3]`: `[-0.05522672,  0.09478495, -0.06746653]`
+    - Next `targ_eval[0][0, :3]` : `[-0.02119069, -0.04744682, -0.0929214 ]`
+    - Right, totally different. So the `sess.run` call is necessary to make the target networks initialised as the actor-critic networks.
 
+This session's results indicate that we are moving in the right direction, even though performance is just as bad or worse than before.
 
+Next
+
+- Understanding the signs of good Q network training
+- Implementing isolated Q training (i.e. random actions, no policy)
