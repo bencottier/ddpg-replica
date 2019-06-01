@@ -682,3 +682,88 @@ Next
 
 - Visualise computation graph in Tensorboard
 - Plan a setup to train the critic on its own (with random actions)
+
+## 2019.05.30
+
+Setting up computation graph visualisation
+
+- Done. Nice!
+
+Examining graph
+
+- Hmm, this has made me think that I'm not doing target variable assignment properly
+- For one, I don't think I am initialising the targets to the actor-critic weights
+    - Added an op for that, similar to target update except without polyak
+- Added explicit run calls for these target updates, i.e. `sess.run(targ_init)` and `sess.run(targ_update)`
+    - Do I need a `feed_dict` here?
+        - I assume no, because we ran `global_variables_initializer()`. The weights don't depend on the placeholder values. Then again, maybe they do in a very long-winded way, via the gradient updates!
+    - Well, the code runs... watch this space
+- Ok, testing out these new ops
+    - Stats definitely look different
+    - For example, PiLoss is generally higher in magnitude, ~10^0
+        - It's also positive and increasing. The critic is harsh and getting more harsh!
+    - We need to give this a more thorough look, compare it to the first 10-seed test
+
+## 2019.06.01
+
+Comparing logs before/after target variable op changes
+
+- Q loss has increased an order of magnitude from 1e-2 to 1e-1. This cannot be explained by between-seed variance, since we are using one of the same seeds.
+- New Q loss has an overall upward trend like before, but this run has a plateau between 10 and 30 thousand steps. However, with only one new run to go on, we can't draw a general conclusion about this.
+- Pi loss has increased an order of magnitude from 1e-1 to 1e0. 
+- Where before Pi loss was about flat, it is now steadily increasing.
+- Average episode return looks similar
+- Average test return now has less variance over time
+- All in all, this is a bad smell to me. But I am not well calibrated on what the loss trends should look like. It may be that we _have_ fixed a problem, but in its absence, other problems are causing different but similarly incorrect behaviour. Still, it is important that we get strong verification that the target variables are initialising and updating correctly. We should be able to do this by inspecting the output of the `sess.run` calls.
+
+Checking target op initialisation
+
+- All seed 0 unless stated otherwise
+- `sess.run(targ_init)`
+    - 12 arrays -> `pi_targ` and `q_targ`, each with input,hidden1,output, each with weight,bias
+    - What are presumably the bias arrays are all initalised to 0. exactly
+    - Weight arrays look like a bunch of random
+    - Need to check this matches the actor-critic vars, so will need to create an op and run for that as well
+    - `targ_init_eval[0][0, :5]`: `[-0.05512697,  0.094685  , -0.06746653,  0.09940008, -0.01107508]`
+- `sess.run(ac_vars)` before `sess.run(targ_init)`
+
+    ```
+    [np.all(targ_init_eval[i] - ac_init_eval[i] == 0) for i in range(len(targ_init_eval))]
+    [True, True, True, True, True, True, True, True, True, True, True, True]
+    ```
+
+    - `targ_init_eval[0][0, :5]`: `[-0.05512697,  0.094685  , -0.06746653,  0.09940008, -0.01107508]`
+
+- `sess.run(ac_vars)` after `sess.run(targ_init)`
+
+    ```
+    [np.all(targ_init_eval[i] - ac_init_eval[i] == 0) for i in range(len(targ_init_eval))]
+    [True, True, True, True, True, True, True, True, True, True, True, True]
+    ```
+
+    - `targ_init_eval[0][0, :5]`: `[-0.05512697,  0.094685  , -0.06746653,  0.09940008, -0.01107508]`
+
+- So initialisation seems to be OK.
+
+Checking target op update
+
+- This ran without error in the episode loop:
+
+    ```python
+    ac_eval = sess.run(ac_vars)
+    if total_steps <= 1:
+        targ_eval = sess.run(targ_init)
+    expected_targ_eval = [polyak*ac_eval[i] + (1-polyak)*targ_eval[i] for i in range(len(targ_eval))]
+    targ_eval = sess.run(targ_update)
+    for i in range(len(targ_eval)):
+        assert np.all(targ_eval[i] - expected_targ_eval[i] == 0)
+    ```
+
+- Also used above to check the actor critic network is updating in response to gradient (just updating at all - it would of course be very hard to verify that it is updating by the right amount).
+    - Initial `ac_eval[0][0, :3]`  : `[-0.05522674,  0.09458509, -0.06746653]`
+    - Initial `targ_eval[0][0, :3]`: `[-0.05522674,  0.09458509, -0.06746653]`
+    - Next `ac_eval[0][0, :3]`     : `[-0.0553144 ,  0.09448526, -0.06754046]`
+    - Next `targ_eval[0][0, :3]    : `[-0.05522683,  0.09458499, -0.0674666 ]`
+    - Yep, that checks out. Great!
+
+
