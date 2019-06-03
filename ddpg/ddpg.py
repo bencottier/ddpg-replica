@@ -55,7 +55,6 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
         _, _, q_pi_targ = actor_critic(x2_ph, a_ph, action_space, **ac_kwargs)
 
     # Target variable initialisation
-    # TODO Not sure if correct. Even if correct, it's not how I remember the baseline.
     ac_vars = [v for v in tf.trainable_variables() if 'actor-critic' in v.name]
     targ_vars = [v for v in tf.trainable_variables() if 'target' in v.name]
     targ_init = [targ_vars[i].assign(ac_vars[i]) for i in range(len(targ_vars))]
@@ -67,7 +66,6 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
     pi_loss = -tf.reduce_mean(q_pi, name='pi_loss')
 
     # Target variable update
-    # TODO Not sure if correct. Even if correct, it's not how I remember the baseline.
     targ_update = [targ_vars[i].assign(polyak * ac_vars[i] + (1 - polyak) * targ_vars[i]) \
             for i in range(len(targ_vars))]
 
@@ -128,7 +126,7 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
             if len(buffer) < max_buffer_size:
                 buffer.append(transition_t)
             else:
-                buffer[total_steps % max_buffer_size] = transition_t  # TODO global step or some other index
+                buffer[total_steps % max_buffer_size] = transition_t
             # Sample a random minibatch of transitions from buffer
             transitions = [random.choice(buffer) for _ in range(batch_size)]
             [x_batch, a_batch, r_batch, x2_batch, d_batch] = \
@@ -141,14 +139,14 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
             sess.run(targ_update)
             # Advance the stored state
             o = o2
-            epoch_logger.store(QLoss=q_loss_eval)
-            epoch_logger.store(PiLoss=pi_loss_eval)
+            epoch_logger.store(LossQ=q_loss_eval)
+            epoch_logger.store(LossPi=pi_loss_eval)
             # Generate summary and write to file
             summ = sess.run(merged_summary, feed_dict=feed_dict)
             writer.add_summary(summ, total_steps)
             if done:
-                epoch_logger.store(Return=ret)
-                epoch_logger.store(EpSteps=t)
+                epoch_logger.store(EpRet=ret)
+                epoch_logger.store(EpLen=t)
                 t = 0
                 ret = 0
                 process.reset()
@@ -172,28 +170,31 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
                 # Advance the stored state
                 o = o2
             # Log stats
-            epoch_logger.store(TestReturn=ret)
-            epoch_logger.store(TestEpSteps=t)
+            epoch_logger.store(TestEpRet=ret)
+            epoch_logger.store(TestEpLen=t)
 
     # Initialise target networks
     sess.run(targ_init)
 
     # Training loop
+    t0 = time.time()
     total_steps = 0
     for epoch in range(epochs):
-        epoch_logger.store(Epoch=epoch+1)
         total_steps = train_epoch(total_steps)
-        epoch_logger.store(TotalSteps=total_steps)
         test()
         # Reporting
+        epoch_logger.store(Epoch=epoch+1)
+        epoch_logger.store(TotalEnvInteracts=total_steps)
+        epoch_logger.store(Time=time.time() - t0)
         epoch_logger.log_tabular('Epoch', average_only=True)
-        epoch_logger.log_tabular('Return', with_min_and_max=True)
-        epoch_logger.log_tabular('TestReturn', with_min_and_max=True)
-        epoch_logger.log_tabular('EpSteps', average_only=True)
-        epoch_logger.log_tabular('TestEpSteps', average_only=True)
-        epoch_logger.log_tabular('TotalSteps', average_only=True)
-        epoch_logger.log_tabular('QLoss', average_only=True)
-        epoch_logger.log_tabular('PiLoss', average_only=True)
+        epoch_logger.log_tabular('EpRet', with_min_and_max=True)
+        epoch_logger.log_tabular('TestEpRet', with_min_and_max=True)
+        epoch_logger.log_tabular('EpLen', average_only=True)
+        epoch_logger.log_tabular('TestEpLen', average_only=True)
+        epoch_logger.log_tabular('TotalEnvInteracts', average_only=True)
+        epoch_logger.log_tabular('LossQ', average_only=True)
+        epoch_logger.log_tabular('LossPi', average_only=True)
+        epoch_logger.log_tabular('Time', average_only=True)
         epoch_logger.dump_tabular()
         # Save state of training variables (use itr=ep to not overwrite)
         # TODO: investigate cause of `Warning: could not pickle state_dict.`
