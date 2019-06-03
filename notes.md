@@ -776,3 +776,27 @@ Next
 
 - Understanding the signs of good Q network training
 - Implementing isolated Q training (i.e. random actions, no policy)
+
+## 2019.06.03
+
+Understanding the signs of good Q network training
+
+- Baseline (from back when doing SU exercise 2.2)
+
+    ```
+    python -m spinup.run plot ../spin/spinningup/data/2019-04-19_ex2-2_ddpg_halfcheetah-v2/2019-04-19_21-03-12-ex2-2_ddpg_halfcheetah-v2_s0 -x TotalEnvInteracts -y AverageEpRet AverageTestEpRet LossPi LossQ
+    ```
+
+- Yep, baseline got good return so it is a good example
+- Q loss
+    - Looks like it doesn't divide by batches because the values are about two orders of magnitude higher than mine. Given the batch size is constant, this is fine.
+    - Well, well. Q loss trends up in the baseline. I was wrong.
+        - But...why?? Why would Bellman error increase as the model improves? Does it flatten out if you train for longer?
+    - So this is actually somewhat encouraging. Our Q network might be OK.
+    - Looking at a different run (2019-04-19_22-23-52-ex2-2_ddpg_halfcheetah-v2_s0), the loss curve is in a U shape, but still trends upward overall.
+        - Apparently the same random seed as previous, so it seems like SU uses seeds for variety and statistical power, but not for exact reproducibility. Maybe it is a good thing to not seed the environment? This may explain the variance in test return I have seen in baselines.
+    - 2019-04-19_22-33-28-ex2-2_ddpg_halfcheetah-v2_s20 similar. The U shape seems to be the more common case.
+- Pi loss
+    - Mine consistently trends upward
+    - Baselines tend to trend upward for the first 3-4 epochs, then down (true of all three seeds that I checked)
+    - Baseline is consistently negative, mine is consistently positive
