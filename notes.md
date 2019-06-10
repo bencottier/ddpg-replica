@@ -935,3 +935,10 @@ Running test with reduced exploration noise
         - I will let this run to completion then check the initial values
         - I mean, the networks not updating is a good explanation for the stagnant runs we have been observing for a while...
         - Yeah, I'm not seeing a change from the initialisation. I am worried that it's a scope issue. Let's commit and then test removing the training function scope.
+        - `pi` is the same every time, `q` is changing, from step to step but with me keeping the inputs fixed
+        - Actually...having discovered this problem, I am changing my mind about `q` vs. `q_pi` in `pi_loss`. The loss function needs to depend on `pi`'s output in some way! Maybe `q_pi` is incorrect, but I don't think `q` is correct either. Let's check...
+            - Yep. Changing `q` back to `q_pi` makes `pi` change its output each time step (again keeping the input fixed).
+        - I was wrong!
+        - And this works fine within the function scope, so keep it.
+    - Ok, now that the `pi` network is at least changing (correctly, who knows...), let's try this version of exploration noise again
+    - 

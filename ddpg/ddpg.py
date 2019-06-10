@@ -63,7 +63,7 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
     # The stop_gradient means inputs to the operation will not factor into gradients
     backup = tf.stop_gradient(r_ph + (1 - d_ph) * discount * q_pi_targ, name='backup')
     q_loss = tf.reduce_mean((backup - q)**2, name='q_loss')
-    pi_loss = -tf.reduce_mean(q, name='pi_loss')
+    pi_loss = -tf.reduce_mean(q_pi, name='pi_loss')
 
     # Target variable update
     targ_update = [targ_vars[i].assign(polyak * ac_vars[i] + (1 - polyak) * targ_vars[i]) \
