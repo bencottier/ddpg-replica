@@ -800,3 +800,138 @@ Understanding the signs of good Q network training
     - Mine consistently trends upward
     - Baselines tend to trend upward for the first 3-4 epochs, then down (true of all three seeds that I checked)
     - Baseline is consistently negative, mine is consistently positive
+
+## 2019.06.04
+
+Changing pi loss and seeing what happens
+
+- Yep. I am just interested in how the behaviour changes, even if it seems wrong to me.
+- 10 epochs, 5000 steps per epoch, seed 0
+- Changing `reduce_mean` to `reduce_sum` (for Q as well)
+    - Similar
+- Changing `q_pi` to `q`
+    - Wow. Big change folks. We are on.
+    - Average return has gone from being in the realm of -500 to -75
+    - Q loss is that U-shape, mostly upward
+    - Pi loss is still strongly trending upward and positive
+    - Let's run this for longer: 20 epochs
+    - I think I understand why this is correct now.
+        - In both cases, the gradient has to back-propagate through the Q-network. This is fine as long as it doesn't modify the Q network (something to think about).
+        - Then, it obtains the gradients for the output of the pi network, which was the action input to Q.
+        - In the case of `q`, these gradients are then backpropagated through the pi network, modifying the parameters, and we are done.
+        - But in the case of `q_pi`, the gradients have to go through the nested pi network input, and then backpropagate through pi _again_ to adjust the parameters.
+        - For analogy, think about GANs. You don't use D(G(x)) for the generator loss. Instead you evaluate the output g = G(x) and then use D(g).
+    - The 20 epoch run still didn't go anywhere outside that -50 to -100 range, but given the above reasonining, I think this is a step in the right direction.
+        - This new behaviour smells a bit like the incorrect tensor dimension bug, but from memory that gave returns hovering closer to zero. Still, I could have a variant of the bug. Watch this space.
+- Un-negating
+    - This is the biggest long shot
+    - The return stats are about the same (with `q` not `q_pi`), but naturally, pi loss is now trending down and negative.
+        - Which just seems silly. My understanding is that pi loss is only meaningful in the iteration it is applied, but still, a process that is trying to decrease a metric ends up consistently increasing it and vice versa? Really confusing.
+    - We can't rule out further problems with the Bellman predictor that is Q.
+
+Next
+
+- Check tensor dimensions, especially those feeding into the losses
+
+## 2019.06.06
+
+Checking tensor dimensions
+
+- I am satisfied with it after probing most of the variables in detail
+
+Trying out initial exploration
+
+- So I am using `env.action_space.sample()` if `total_steps` is less than a certain threshold, otherwise as before
+- What threshold?
+- Should I not train the networks? Only train the Q network?
+- At the moment I am working on a different idea: accumulating the replay buffer to a decent size before doing any training. It seems like this wouldn't hurt matters...just starting off with a wider pool of experience before the actor-critic starts learning. I just feel that the high number of repeated samples when the buffer is near-empty could be problematic.
+    - Then again, maybe this is by design: get the networks training on something consistent. This doesn't feel plausible to me though.
+    - If I set the non-learning phase to `steps_per_epoch - 1`, such that we are choosing actions randomly, the return is -334 (on this particular run) compared to the -50 to -100 range we've been stuck on. This suggests that the model is doing _something_ right.
+- Should one freely explore in every epoch, or just the first?
+
+Next
+
+- Review what we changed today because I am tired
+- Try pure exploration every epoch. And for goodness sake, try a different seed...
+
+## 2019.06.08
+
+Reviewing changes
+
+- Change `q_pi` to `q` for `pi_loss`
+    - Hmm, I think this was earlier and should have been committed
+- Add exploration steps
+    - Set a fixed number of "exploration steps"
+        - This is to introduce an "exploration phase" of training. I had two uses in mind: accumulate experience in the buffer before drawing on them, and give the critic a head start before evaluating the actor, such that it gives more accurate evaluation and greater stability.
+    - Changes to the training loop until _global_ step reaches the number of exploration steps:
+        - Choose the current action randomly, _not_ according to actor
+            - Increases the variance in experience, to benefit the critic
+        - Perform the gradient descent step on the critic and _not_ the actor
+            - Gives the critic a head start
+- Move advancing the observation (i.e. `o = o2`) and the `if done` procedure forward, before the network training ops
+- Only run 1 test trajectory instead of 10
+- Nothing stands out as a bad choice, but I think using _global_ step for the exploration phase might not make as much sense as using the epoch step.
+- My rationale for the exploration and critic-head-start is based on recall of the baseline implementation, and a technique I have seen for GAN training. Pseudocode:
+
+    ```
+    for epoch in epochs:
+        i = 0
+        while i < number_of_data_points:
+            discriminator.set_trainable(true)
+            generator.set_trainable(false)
+            j = 0
+            while j < discriminator_iters and i < number_of_data_points:
+                j += 1; i += 1
+                do_discriminator_training_iteration()
+            discriminator.set_trainable(false)
+            generator.set_trainable(true)
+            do_generator_training_iteration()
+    ```
+
+    - Here, the discriminator is trained `discriminator_iters`-times more than the generator
+    - The extra training is done every epoch
+
+Running no-exploration (but change of `q_pi` to `q` in `pi_loss`) for seeds 10, 20, 30, 20 epochs, 1 test trajectory per epoch
+
+- Just because we ought to try different seeds sometimes!
+- Oh rats. I think I should be putting `update=True` when calling `process.sample`, to update the state.
+    - Nope, silly. `update=True` is the default and it's what we want!
+- Looking at the training go here...definitely significant variance between seeds. Worth trying regularly.
+    - Something might be off though. Both the train and test return for seed 10 and 20 are in the 0 to -20 range. This doesn't seem normal for the first epochs, too good to be true. Be vigilant.
+    - Well, seed 30 is in a -80 to -140 range, so it could just be seed ideosyncrasies.
+    - So seed 0, 30 are alike, seed 10, 20 are alike
+- I'm thinking about why pi loss would go up
+    - Exploration noise magnitude is too high, so it is not evaluated well to begin with. Critic becomes more accurate and the noisy action gets a worse review over time.
+        - Yeahhhh...probably:
+
+            ```
+            process.sample()/a_pi
+            array([ -7.7017942 ,   4.89124961, -12.97847115, -42.12927971,\n         0.94239252,  -8.46267434])
+            process.sample()/a_pi
+            array([ -7.98796825,   3.9495834 , -11.8698725 , -47.99462962,\n         0.86044746,  -8.18483581])
+            process.sample()/a_pi
+            array([ -7.61431421,   3.95606896, -11.58792034, -46.44039802,\n         1.00007891,  -8.97872908])
+            process.sample()/a_pi
+            array([ -7.85591755,   3.68207894, -11.56466114, -48.57379345,\n         0.99131507,  -8.06771304])
+            ```
+
+    - Something is off about the use of action limits. Maybe the wrong index or axis or dimensionality.
+
+Next:
+
+- Run test with reduced exploration noise
+    - Time-independent random normal
+    - Process
+
+## 2019.06.10
+
+Running test with reduced exploration noise
+
+- `np.random.normal`
+    - I think an std of somewhere between 0.001 and 0.1 makes sense. Let's try 0.01.
+    - Seeds: 0, 10, 20
+    - Hang on a tic...I'm looking at the results for the last seed=0 run I did, compared to this one. Training return in this one has a higher average (about -63 vs. -80), and much lower std (about 3 vs. 15). But test return is identical. You can't explain that.
+        - Checked it is running actor_minimize, but based on `sess.run(ac_vars[0])` there is no change
+        - I will let this run to completion then check the initial values
+        - I mean, the networks not updating is a good explanation for the stagnant runs we have been observing for a while...
+        - Yeah, I'm not seeing a change from the initialisation. I am worried that it's a scope issue. Let's commit and then test removing the training function scope.

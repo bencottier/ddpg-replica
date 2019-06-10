@@ -63,7 +63,7 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
     # The stop_gradient means inputs to the operation will not factor into gradients
     backup = tf.stop_gradient(r_ph + (1 - d_ph) * discount * q_pi_targ, name='backup')
     q_loss = tf.reduce_mean((backup - q)**2, name='q_loss')
-    pi_loss = -tf.reduce_mean(q_pi, name='pi_loss')
+    pi_loss = -tf.reduce_mean(q, name='pi_loss')
 
     # Target variable update
     targ_update = [targ_vars[i].assign(polyak * ac_vars[i] + (1 - polyak) * targ_vars[i]) \
@@ -101,7 +101,7 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
     epoch_logger.setup_tf_saver(sess, input_dict, output_dict)
 
     def select_action(a_pi):
-        return a_pi + process.sample()
+        return a_pi + np.random.normal(loc=0.0, scale=0.01, size=(act_dim,)) # process.sample()
 
     def train_epoch(total_steps):
         """
@@ -111,17 +111,31 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
         ret = 0  # episode return
         process.reset()  # initalise random process for action exploration
         o = env.reset()  # receive initial observation state
+        exploration_steps = 0  # 0.2 * steps_per_epoch
         for step in range(steps_per_epoch):
-            # Select action according to the current policy and exploration noise
-            a_pi = np.squeeze(sess.run(pi, feed_dict={x_ph: o.reshape([1, -1])}), axis=0)
-            a = select_action(a_pi)
-            # a = env.action_space.sample()
+            if step < exploration_steps:
+                # Initial exploration
+                a = env.action_space.sample()
+            else:
+                # Select action according to the current policy and exploration noise
+                a_pi = np.squeeze(sess.run(pi, feed_dict={x_ph: o.reshape([1, -1])}), axis=0)
+                a = select_action(a_pi)
             # Execute action and observe reward and new state
             o2, r, done, _ = env.step(a)
             t += 1
             total_steps += 1
             ret += r
             transition_t = (o, a, r, o2, done)
+            # Advance the stored state
+            o = o2
+            # Check for end of episode
+            if done:
+                epoch_logger.store(EpRet=ret)
+                epoch_logger.store(EpLen=t)
+                t = 0
+                ret = 0
+                process.reset()
+                o = env.reset()
             # Store transition in buffer
             if len(buffer) < max_buffer_size:
                 buffer.append(transition_t)
@@ -133,29 +147,26 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
                     [np.array([tr[i] for tr in transitions]) for i in range(5)]
             # Run training ops
             feed_dict = {x_ph: x_batch, a_ph: a_batch, x2_ph: x2_batch, r_ph: r_batch, d_ph: d_batch}
-            ops = [critic_minimize, actor_minimize, q_loss, pi_loss]
-            _, _, q_loss_eval, pi_loss_eval = sess.run(ops, feed_dict=feed_dict)
+            if step < exploration_steps:
+                ops = [critic_minimize, q_loss]
+                _, q_loss_eval = sess.run(ops, feed_dict=feed_dict)
+                pi_loss_eval = 0
+            else:
+                ops = [critic_minimize, actor_minimize, q_loss, pi_loss]
+                _, _, q_loss_eval, pi_loss_eval = sess.run(ops, feed_dict=feed_dict)
             # Update the target networks
             sess.run(targ_update)
-            # Advance the stored state
-            o = o2
+            # Log stats
             epoch_logger.store(LossQ=q_loss_eval)
             epoch_logger.store(LossPi=pi_loss_eval)
             # Generate summary and write to file
             summ = sess.run(merged_summary, feed_dict=feed_dict)
             writer.add_summary(summ, total_steps)
-            if done:
-                epoch_logger.store(EpRet=ret)
-                epoch_logger.store(EpLen=t)
-                t = 0
-                ret = 0
-                process.reset()
-                o = env.reset()
         return total_steps
                 
     def test():
         # Run a few episodes for statistical power
-        for _ in range(10):
+        for _ in range(1):
             t = 0
             ret = 0
             done = False
