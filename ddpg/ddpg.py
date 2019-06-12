@@ -101,7 +101,7 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
     epoch_logger.setup_tf_saver(sess, input_dict, output_dict)
 
     def select_action(a_pi):
-        return a_pi + np.random.normal(loc=0.0, scale=0.01, size=(act_dim,)) # process.sample()
+        return a_pi + np.random.normal(loc=0.0, scale=0.1, size=(act_dim,)) # process.sample()
 
     def train_epoch(total_steps):
         """
@@ -111,7 +111,7 @@ def ddpg(env_name, discount, batch_size, polyak, epochs, steps_per_epoch,
         ret = 0  # episode return
         process.reset()  # initalise random process for action exploration
         o = env.reset()  # receive initial observation state
-        exploration_steps = 0  # 0.2 * steps_per_epoch
+        exploration_steps = 0.2 * steps_per_epoch
         for step in range(steps_per_epoch):
             if step < exploration_steps:
                 # Initial exploration

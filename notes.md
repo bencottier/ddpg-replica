@@ -941,4 +941,114 @@ Running test with reduced exploration noise
         - I was wrong!
         - And this works fine within the function scope, so keep it.
     - Ok, now that the `pi` network is at least changing (correctly, who knows...), let's try this version of exploration noise again
-    - 
+
+Big news!
+
+- Random normal noise std 0.1
+- 1000 exploration steps per 5000-step epoch
+- Seed 0 was a good run, return got consistently positive, usually 100s (!!!)
+- Seed 10 didn't go anywhere (goes to show, always try different seeds)
+- Seed 20 seems lucky and gets positive return after the first epoch
+
+Next
+
+- Remove the exploration steps as an ablation study, to make sure what the cause of this success is
+- Try slightly lower e.g. half the current std of noise (it seems a little too high but we'll see)
+- Revert to time-dependent noise process and play with parameter values
+
+## 2019.06.11
+
+Trying seed 0 without exploration steps but with Gaussian exploration noise
+
+- Plot
+
+    ```
+    python -m spinup.run plot ./out/2019-06-11-13-43-49_ddpg_halfcheetah-v2_s0/ -x TotalEnvInteracts -y AverageEpRet AverageTestEpRet LossPi LossQ
+    ```
+
+    - It's a rollercoaster
+    - I'll have to pick this up another day -- get a clearer picture on the differences between runs (0.1 vs. 0.05 std in noise, 0 vs. 1000 exploration steps)
+
+Tried seed 0 (?), 10, 20 with Gaussian 0.05 std, no exploration steps
+
+Tried seed 0 (?), 10, 20 with Gaussian 0.05 std, 1000 exploration steps
+
+## 2019.06.12
+
+Organising log files
+
+- Before the next experiments let's change the logging system to handle experiment-name directories (i.e. not just time stamps), and add command line argument parsing
+- Once we have a better idea of what the effects are of the current things I'm playing with, let's look into shortening the episode length, reducing the frequency of computed actions, and threads. The last one will compromise random seed reproducibility and should be left until we are more confident in how more consistent  performance can be achieved.
+- Last run
+    - Seed 10, 20; 1000 exploration steps; Gaussian exploration noise 0.05 std
+    - 2019-06-11-(17-13-05,17-41-31)
+- Second last run
+    - Seed 0, 10, 20; 0 exploration steps; Gaussian exploration noise 0.05 std
+    - 2019-06-11-(15-34-15,16-07-39,16-39-40)
+- June 10th runs
+    - Seed 0, 10, 20; 1000 exploration steps; Gaussian exploration noise 0.1 std
+    - 2019-06-10-(21-44-02,22-12-40,22-40-51)
+    - Earlier runs from June 10th are all seed 0 so presumably incomplete preliminary tests
+- Ok... the first run I did on the 11th (2019-06-11-13-43-49_ddpg_halfcheetah-v2_s0) is seed 0, and that would correspond to 0 exploration steps, but it is unclear whether it was 0.1 or 0.05 std on Gaussian exploration noise.
+    - Based on my to-do list I reckon noise was still at 0.1
+    - This means we are missing the 1000-0.05 combo for seed 0
+    - Let's run it and check if it matches any other runs - that will help verify
+    - Next time, I will record all runs I am doing with exact parameters...
+
+Running seed 0; 1000 exploration steps; Gaussian exploration noise 0.05 std
+
+Running seed 10,20; 0 exploration steps; Gaussian exploration noise 0.1 std
+
+Ok, now we have seeds 0, 10, 20 for 4 variants: (0, 1000) x (0.1, 0.05)
+
+- Customising the SU plot script (copied to this repo) to add save functionality, because saving figures in MPL's GUI is awful
+- Ok. There are basically three classes of performance here.
+    - Bad (B): consistently in the -100s, around -500
+    - Mixed (M): achieves good performance at multiple epochs, but fluctuates, sometimes going bad again
+    - Good (G): gets good and stays good
+- 0, 0.1
+    - ![AverageEpRet](./out/test_exp_0_gauss_0p1/plot/AverageEpRet.png)
+    - ![AverageTestEpRet](./out/test_exp_0_gauss_0p1/plot/AverageTestEpRet.png)
+    - ![LossPi](./out/test_exp_0_gauss_0p1/plot/LossPi.png)
+    - ![LossQ](./out/test_exp_0_gauss_0p1/plot/LossQ.png)
+    - B=2, M=1, G=0
+- 0, 0.05
+    - ![AverageEpRet](./out/test_exp_0_gauss_0p05/plot/AverageEpRet.png)
+    - ![AverageTestEpRet](./out/test_exp_0_gauss_0p05/plot/AverageTestEpRet.png)
+    - ![LossPi](./out/test_exp_0_gauss_0p05/plot/LossPi.png)
+    - ![LossQ](./out/test_exp_0_gauss_0p05/plot/LossQ.png)
+    - B=2, M=0, G=1
+- 1000, 0.1
+    - ![AverageEpRet](./out/test_exp_1000_gauss_0p1/plot/AverageEpRet.png)
+    - ![AverageTestEpRet](./out/test_exp_1000_gauss_0p1/plot/AverageTestEpRet.png)
+    - ![LossPi](./out/test_exp_1000_gauss_0p1/plot/LossPi.png)
+    - ![LossQ](./out/test_exp_1000_gauss_0p1/plot/LossQ.png)
+    - B=1, M=1, G=1
+    - I forgot that I cut s20, e1000, v0.1 short at 13 epochs. That was the run that started good from the very first epoch.
+- 1000, 0.05
+    - ![AverageEpRet](./out/test_exp_1000_gauss_0p05/plot/AverageEpRet.png)
+    - ![AverageTestEpRet](./out/test_exp_1000_gauss_0p05/plot/AverageTestEpRet.png)
+    - ![LossPi](./out/test_exp_1000_gauss_0p05/plot/LossPi.png)
+    - ![LossQ](./out/test_exp_1000_gauss_0p05/plot/LossQ.png)
+    - B=1, M=2, G=0
+- There is a consistent correlation between LossPi decreasing into the negative, and good performance. But LossPi does not fluctuate up and down in correlation with the Mixed performance; little bumps and plateaus if anything.
+- The relationship between LossQ and performance is less clear: LossQ is almost always increasing in the positive, and in _most_ cases, a higher rate of increase correlates with good performance
+    - Apparent counterexample: 1000, 0.1, blue curve
+    - This just baffles me even more...why would performance _improve_ when an error minimisation objective _increases_!? I can only hand-wavily explain it by the complexities of actor-critic dynamics.
+- This is all very uncertain but I would lean towards exploration steps helping
+- The noise std is unclear: when you identify by seed, it actually turned one Mixed to Bad and one Bad to Good for 0 exploration, and one Good to Mixed for 1000 exploration
+- The big positive to take away here is that we can get good performance sometimes!
+    - To totally clear my doubt though, I need to see that cheetah running with my own eyes...
+- I can't say I'm surprised at the extreme variance in performance, my burning question now is: how does SU achieve such good consistency?
+
+Running seed 20, e1000, v0.1 to complete the result
+
+- Interesting, it isn't replicating the run I have down as the same!
+- It's possible running through vscode debugger is compromising the random state repeatability...but this hasn't been a problem before
+
+Next
+
+- Check for random seed consistency
+- Add experiment naming to logdir procedure and logger object
+- Add exploration params to `ddpg` arguments
+- Set up argument parsing in `main`
