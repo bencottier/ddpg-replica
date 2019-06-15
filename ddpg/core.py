@@ -7,27 +7,50 @@ import tensorflow as tf
 import numpy as np
 
 
-class OrnsteinUhlenbeckProcess(object):
-    
-    def __init__(self, theta, sigma, mu=0., shape=None, x0=None, dt=.001):
+class StochasticProcess:
+    def __init__(self, loc=0., shape=None, x0=None, dt=.001):
+        self.loc = loc
         self.shape = shape
-        self.theta = theta
-        self.sigma = sigma
-        self.mu = mu
-        self.dt = dt
-        self.sqrtdt = np.sqrt(self.dt)
         self.x0 = np.zeros(self.shape, dtype=np.float32) if x0 is None else x0
+        self.dt = dt
         self.reset()
 
+    def next_value(self):
+        return 0.0
+
     def sample(self, update=True):
-        x = self.x + self.theta * (self.mu - self.x) * self.dt + \
-                self.sigma * self.sqrtdt * np.random.normal(size=self.shape)
+        x = self.next_value()
         if update:
             self.x = x
         return x
 
     def reset(self):
         self.x = self.x0
+
+
+class StochasticProcessWithScale(StochasticProcess):
+    def __init__(self, scale=1.0, *args, **kwargs):
+        self.scale = scale
+        super(StochasticProcessWithScale, self).__init__(*args, **kwargs)
+
+
+class NormalProcess(StochasticProcessWithScale):
+    """
+    Samples from a normal distribution independently at each step.
+    """
+    def next_value(self):
+        return np.random.normal(self.loc, self.scale, self.shape)
+
+
+class OrnsteinUhlenbeckProcess(StochasticProcessWithScale):
+    def __init__(self, theta=0.15, sigma=0.2, *args, **kwargs):
+        self.theta = theta
+        self.sqrtdt = np.sqrt(self.dt)
+        super(OrnsteinUhlenbeckProcess, self).__init__(scale=sigma, *args, **kwargs)
+
+    def next_value(self):
+        return self.x + self.theta * (self.loc - self.x) * self.dt + \
+                self.scale * self.sqrtdt * np.random.normal(size=self.shape)
 
 
 def placeholders(*shapes):

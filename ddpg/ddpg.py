@@ -12,10 +12,10 @@ import random
 import time
 
 
-def ddpg(exp_name, env_name, discount=0.99, batch_size=64, polyak=0.001, 
-        epochs=200, steps_per_epoch=5000, seed=0, 
-        actor_critic=core.mlp_actor_critic, noise_scale=1.0, 
-        exploration_steps=None, ac_kwargs=dict(), logdir=None):
+def ddpg(exp_name, env_name, seed=0, epochs=200, steps_per_epoch=5000,
+        batch_size=64, discount=0.99, polyak=0.001, exploration_steps=None, 
+        rand_proc=core.OrnsteinUhlenbeckProcess, rand_proc_kwargs=dict(),
+        actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), logdir=None):
     # Do not reuse old graph (in case of persistence over multiple calls)
     tf.reset_default_graph()
 
@@ -46,7 +46,7 @@ def ddpg(exp_name, env_name, discount=0.99, batch_size=64, polyak=0.001,
     d_ph = tf.placeholder(tf.float32, shape=(None,), name='done')
 
     # Initalise random process for action exploration
-    process = core.OrnsteinUhlenbeckProcess(theta=0.15, sigma=0.2, shape=(act_dim,))
+    process = rand_proc(shape=(act_dim,), **rand_proc_kwargs)
     if exploration_steps is None:
         exploration_steps = 0.2 * steps_per_epoch
 
@@ -104,7 +104,7 @@ def ddpg(exp_name, env_name, discount=0.99, batch_size=64, polyak=0.001,
     epoch_logger.setup_tf_saver(sess, input_dict, output_dict)
 
     def select_action(a_pi):
-        return a_pi + np.random.normal(loc=0.0, scale=noise_scale, size=(act_dim,)) # process.sample()
+        return a_pi + process.sample()
 
     def train_epoch(total_steps):
         """
