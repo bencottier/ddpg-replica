@@ -30,8 +30,8 @@ class StochasticProcess:
 
 class StochasticProcessWithScale(StochasticProcess):
     def __init__(self, scale=1.0, *args, **kwargs):
-        self.scale = scale
         super(StochasticProcessWithScale, self).__init__(*args, **kwargs)
+        self.scale = scale
 
 
 class NormalProcess(StochasticProcessWithScale):
@@ -44,9 +44,9 @@ class NormalProcess(StochasticProcessWithScale):
 
 class OrnsteinUhlenbeckProcess(StochasticProcessWithScale):
     def __init__(self, theta=0.15, sigma=0.2, *args, **kwargs):
+        super(OrnsteinUhlenbeckProcess, self).__init__(scale=sigma, *args, **kwargs)
         self.theta = theta
         self.sqrtdt = np.sqrt(self.dt)
-        super(OrnsteinUhlenbeckProcess, self).__init__(scale=sigma, *args, **kwargs)
 
     def next_value(self):
         return self.x + self.theta * (self.loc - self.x) * self.dt + \
@@ -136,6 +136,7 @@ if __name__ == '__main__':
 
     x0 = 0
     process = OrnsteinUhlenbeckProcess(0.15, 0.2, x0=x0)
+    # process = NormalProcess(scale=0.1, x0=x0)
     n = 100
     x = np.zeros(n)
     x[0] = x0
