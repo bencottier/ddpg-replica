@@ -11,10 +11,10 @@ import argparse
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('exp')
-    parser.add_argument('env')
-    parser.add_argument('logdir', default='out')
-    parser.add_argument('seeds', type=int, default=0, nargs='*')
+    parser.add_argument('env_name')
+    parser.add_argument('--exp_name', default=None)
+    parser.add_argument('--logdir', default='out')
+    parser.add_argument('--seeds', type=int, default=0, nargs='*')
     parser.add_argument('--epochs', type=int, default=20)
     parser.add_argument('--steps_per_epoch', type=int, default=5000)
     parser.add_argument('--discount', type=float, default=.99)
@@ -29,10 +29,10 @@ if __name__ == '__main__':
     rand_proc_dir = {'normal': core.NormalProcess, 
                      'ou': core.OrnsteinUhlenbeckProcess}
     rand_proc = rand_proc_dir[args.rand_proc]
-    
+
     for seed in seeds:
         print("\nNEW EXPERIMENT: SEED {}\n".format(seed))
-        ddpg(exp_name=args.exp, env_name=args.env, logdir='out', seed=seed, 
+        ddpg(env_name=args.env_name, exp_name=args.exp_name, logdir='out', seed=seed, 
                 epochs=args.epochs, steps_per_epoch=args.steps_per_epoch, 
                 batch_size=args.batch_size, discount=args.discount,
                 polyak=args.polyak, exploration_steps=args.exploration_steps,
