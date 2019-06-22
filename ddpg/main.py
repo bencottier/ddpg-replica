@@ -6,6 +6,7 @@ author: bencottier
 from ddpg import ddpg
 import core
 import gym
+import json
 import argparse
 
 
@@ -22,7 +23,7 @@ if __name__ == '__main__':
     parser.add_argument('--polyak', type=float, default=0.001)
     parser.add_argument('--exploration_steps', type=int, default=1000)
     parser.add_argument('--rand_proc', default='ou')
-    parser.add_argument('--rand_proc_scale', type=float, default=0.1)
+    parser.add_argument('--rand_proc_kwargs', type=json.loads, default=dict())
     args = parser.parse_args()
 
     seeds = args.seeds if isinstance(args.seeds, list) else [args.seeds]
@@ -36,4 +37,4 @@ if __name__ == '__main__':
                 epochs=args.epochs, steps_per_epoch=args.steps_per_epoch, 
                 batch_size=args.batch_size, discount=args.discount,
                 polyak=args.polyak, exploration_steps=args.exploration_steps,
-                rand_proc=rand_proc, rand_proc_kwargs={'scale': args.rand_proc_scale})
+                rand_proc=rand_proc, rand_proc_kwargs=args.rand_proc_kwargs)
