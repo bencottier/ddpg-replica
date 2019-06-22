@@ -21,6 +21,7 @@ def ddpg(env_name, exp_name=None, seed=0, epochs=200, steps_per_epoch=5000,
 
     # Create environment
     env = gym.make(env_name)
+    # env._max_episode_steps = 150
 
     # Create loggers
     if exp_name is None:
@@ -28,7 +29,7 @@ def ddpg(env_name, exp_name=None, seed=0, epochs=200, steps_per_epoch=5000,
     if logdir is not None:
         time_string = time.strftime('%Y-%m-%d-%H-%M-%S')
         logdir = f'{logdir}/{exp_name}/{time_string}_ddpg_{env_name.lower()}_s{seed}'
-    epoch_logger = EpochLogger(output_dir=logdir, exp_name=exp_name)
+    epoch_logger = EpochLogger(output_dir=logdir, exp_name=f's{seed}')
     epoch_logger.save_config(locals())
 
     # Set random seed
@@ -170,7 +171,7 @@ def ddpg(env_name, exp_name=None, seed=0, epochs=200, steps_per_epoch=5000,
                 
     def test():
         # Run a few episodes for statistical power
-        for _ in range(1):
+        for _ in range(10):
             t = 0
             ret = 0
             done = False
