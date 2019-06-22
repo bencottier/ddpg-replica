@@ -8,7 +8,7 @@ import numpy as np
 
 
 class StochasticProcess:
-    def __init__(self, loc=0., shape=None, x0=None, dt=.001):
+    def __init__(self, loc=0., shape=None, x0=None, dt=.05):
         self.loc = loc
         self.shape = shape
         self.x0 = np.zeros(self.shape, dtype=np.float32) if x0 is None else x0
@@ -135,9 +135,9 @@ if __name__ == '__main__':
     # print("Q(s, pi):", q_pi)
 
     x0 = 0
-    process = OrnsteinUhlenbeckProcess(0.15, 0.2, x0=x0)
+    process = OrnsteinUhlenbeckProcess(0.15, 0.2, x0=x0, dt=0.05)
     # process = NormalProcess(scale=0.1, x0=x0)
-    n = 100
+    n = 1000
     x = np.zeros(n)
     x[0] = x0
     for i in range(n-1):
@@ -145,4 +145,5 @@ if __name__ == '__main__':
 
     import matplotlib.pyplot as plt
     plt.plot(x)
+    plt.plot(np.random.normal(scale=0.2, size=n))
     plt.show()
