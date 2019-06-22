@@ -1052,3 +1052,120 @@ Next
 - Add experiment naming to logdir procedure and logger object
 - Add exploration params to `ddpg` arguments
 - Set up argument parsing in `main`
+
+## 2019.06.15
+
+Adding exploration aprams to `ddpg` arguments
+
+- `noise_scale=1.0`
+    - Standard normal distribution
+- `exploration_steps=None`
+    - Either `0` or `None` seems like an appropriate default. I don't want to set a non-zero integer because I think it should depend on the value of `steps_per_epoch`.
+
+Generalising stochastic process API and integrate the current independent normal sampling
+
+Setting up argument parsing in `main`
+
+Modifying log directory creation to use experiment names and sub-directories
+
+Checking random seed consistency
+
+- Ok, I'm going to run seed 20 e1000 v0.1 twice for one epoch
+- It's plausible that the changes we just made will make it different to any previous runs, so we may have to test at least two fresh runs for consistency
+- Result
+    - The first run stats are identical to `2019-06-12-15-58-06` (except run time)
+    - The second run stats are different
+    - So my most likely explanation is that the random state is not perfectly reset between calls of `ddpg` with a persistent instance of the interpretor (i.e. the loop over seeds in `main.py`)
+        - Supported be re-running it and getting the same _corresponding_ results (i.e. first run matches first run and second run matches second run)
+        - It is likely this could be fixed by changing or adding some call for TensorFlow or one of the other interfaces using random state. I already have `tf.reset_default_graph()` at the top of `ddpg()` and `env.close; sess.close` at the bottom
+        - A workaround is to use a bash script to iterate random seeds
+
+Trying out holding actions for 10 environment steps. Also running 10 test episodes.
+
+- Reasoning about the HalfCheetah environment, I see how it could make more sense to have the smallest interact resolution but shorten the episode length, because the desired behaviour is very repetitive. Let's try that next and compare to this.
+- Hmm, Pi and Q loss are very high (10s) so I doubt this works well, but it could be quite sensitive to the length of hold. This is only the first seed.
+
+Trying out episode length shortened to 150 steps
+
+- Aside: commenting out the parallel threads config
+    - Seed 0 is certainly different but not widly different. I think the difference may increase over time as randomness compounds. Time is 10-20 seconds shorter per epoch for this run but I can't be sure that's not coincidence.
+    - Uncommenting again, and changing threads from 1 to 4, no significant change in time.
+
+## 2019.06.16
+
+Running 10 seeds (0 to 90) with episode length of 150
+
+## 2019.06.17
+
+Reviewing shorter episode length results
+
+- 6 Bad, 1 Borderline, 3 Mixed
+- Repeats the correlations observed in the previous experiments between decreasing pi loss, increased rate of increase in q loss, and good performance (relatively). The Borderline case has increasing pi loss, but at a slower rate than the Bad cases. 
+- Overall I'm not getting anything new from this experiment. Shortening the episode length seems to have little consequence in terms of the goal of consistently good performance.
+
+## 2019.06.19
+
+Reading DDPG paper in detail
+
+- Same hyperparameters across tasks
+    - Suggests that if we have the right implementation, it shouldn't be catastrophically sensitive to hyperparameters (esp. if we match the author settings)
+- Cartpole swing-up: should try
+- "Because DDPG is an off-policy algorithm, the replay buffer can be large, allowing
+the algorithm to benefit from learning across a set of uncorrelated transitions."
+    - Yeah, I think because each transition is evaluated by the critic anew, the age of samples is not a problem. The buffer size is a relatively minor concern; keeping it at 1 million should be OK.
+- Are we copying the target variables correctly in the initial? Variable scopes could make all the difference.
+- "In the low-dimensional case, we used batch normalization on the state input and all layers of the μ network and all layers of the Q network prior to the action input (details of the networks are given in the supplementary material)."
+    - Check this
+- "...we used an Ornstein-Uhlenbeck process (Uhlenbeck & Ornstein, 1930) to generate temporally correlated exploration for exploration efficiency in physical control problems with inertia"
+    - So it doesn't always make the most sense
+- Action repeats were only used for the high-dimensional (pixels) case
+- "results are averaged over 5 replicas"
+    - Seeds?
+
+## 2019.06.20
+
+Reading DDPG paper in detail
+
+- Based on Figure 2, batch normalisation gives overall improvement, but not a lot. For Cheetah, there is no significant difference
+- Pendulum swing-up is easier -- let's try to get hold of that environment in the continuous domain
+- In some problems (especially simple domains), Q values tend to track return well, but not Cheetah.
+- Should try leaving action input to the second hidden layer of Q
+
+Main point is that we should go back to basics. The more elaborate things we have been trying may improve average performance (_may_), they may make it more robust, but we should still see good enough signs that the implementation is correct without all the frills.
+
+Running `Pendulum-v0` on seed 0
+
+- Why not, I'm curious. But let's not get into the weeds yet.
+
+Next
+
+- Review notes on paper review
+- Check and think about action limits placed on actor output
+- Restore OU noise process
+
+## 2019.06.22
+
+Reviewing notes on paper review
+
+- You know, the Ornstein-Uhlenbeck process `dt` value is going to affect it a lot.
+    - Take this example from (here)[https://www.pik-potsdam.de/members/franke/lecture-sose-2016/introduction-to-python.pdf]; implementation is mathematically the same as mine: 
+
+        ```
+        t = np.linspace(t_0,t_end,length)  # define time axis
+        dt = np.mean(np.diff(t))
+        ```
+
+    - So we have some duration and divide it by the number of steps...how much time is one step in the simulator?
+    - Ok if you go `env = gym.make('SomeEnv-v0')` and then `env.env.dt` you get it. For `HalfCheetah-v2` and `Pendulum-v0` at least, `dt = 0.05`.
+    - Setting default `dt=.05`
+- It occurs to me that we should log both critic and Q-target outputs as another check of target updates working correctly
+
+Action limits placed on actor output
+
+- Output activation is tanh, meaning each element is between -1 and 1
+- We multiply this by `action_space.high` which stores the upper limit of actions in each dimension
+- `action_space.low` is the negative of `action_space.high` as far as we have seen
+- For example `Pendulum-v0` has one action dimension with `action_space.high = [2.]`. So output will be scaled to [-2., 2.]. This makes sense.
+- The general way to do it would be `(h - l) * (o + 1)/2 + l` where h is high, l is low, o is tanh output
+
+
