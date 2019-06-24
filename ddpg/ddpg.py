@@ -171,12 +171,13 @@ def ddpg(env_name, exp_name=None, seed=0, epochs=200, steps_per_epoch=5000,
                 
     def test():
         # Run a few episodes for statistical power
-        for _ in range(10):
+        for _ in range(5):
             t = 0
             ret = 0
             done = False
             o = env.reset()
             while not done:
+                env.render()
                 # Select action according to the current policy
                 a = np.squeeze(sess.run(pi, feed_dict={x_ph: o.reshape([1, -1])}), axis=0)
                 # Execute action and observe reward and new state
