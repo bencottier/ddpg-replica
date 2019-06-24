@@ -14,6 +14,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('env_name')
     parser.add_argument('--exp_name', default=None)
+    parser.add_argument('--exp_variant', default=None)
     parser.add_argument('--logdir', default='out')
     parser.add_argument('--seeds', type=int, default=0, nargs='*')
     parser.add_argument('--epochs', type=int, default=20)
@@ -33,7 +34,8 @@ if __name__ == '__main__':
 
     for seed in seeds:
         print("\nNEW EXPERIMENT: SEED {}\n".format(seed))
-        ddpg(env_name=args.env_name, exp_name=args.exp_name, logdir='out', seed=seed, 
+        ddpg(env_name=args.env_name, exp_name=args.exp_name, exp_variant=args.exp_variant,
+                logdir='out', seed=seed, 
                 epochs=args.epochs, steps_per_epoch=args.steps_per_epoch, 
                 batch_size=args.batch_size, discount=args.discount,
                 polyak=args.polyak, exploration_steps=args.exploration_steps,

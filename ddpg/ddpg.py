@@ -12,7 +12,7 @@ import random
 import time
 
 
-def ddpg(env_name, exp_name=None, seed=0, epochs=200, steps_per_epoch=5000,
+def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_per_epoch=5000,
         batch_size=64, discount=0.99, polyak=0.001, exploration_steps=None, 
         rand_proc=core.OrnsteinUhlenbeckProcess, rand_proc_kwargs=dict(),
         actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), logdir=None):
@@ -26,10 +26,12 @@ def ddpg(env_name, exp_name=None, seed=0, epochs=200, steps_per_epoch=5000,
     # Create loggers
     if exp_name is None:
         exp_name = 'uncategorised'
+    if exp_variant is None:
+        exp_variant = 'run'
     if logdir is not None:
         time_string = time.strftime('%Y-%m-%d-%H-%M-%S')
         logdir = f'{logdir}/{exp_name}/{time_string}_ddpg_{env_name.lower()}_s{seed}'
-    epoch_logger = EpochLogger(output_dir=logdir, exp_name=f's{seed}')
+    epoch_logger = EpochLogger(output_dir=logdir, exp_name=f'{exp_variant}-s{seed}')
     epoch_logger.save_config(locals())
 
     # Set random seed
