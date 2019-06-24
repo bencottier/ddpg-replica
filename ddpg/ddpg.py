@@ -109,7 +109,8 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
     epoch_logger.setup_tf_saver(sess, input_dict, output_dict)
 
     def select_action(a_pi):
-        return a_pi + process.sample()
+        a = a_pi + action_space.high * process.sample()
+        return np.clip(a, action_space.low, action_space.high)
 
     def train_epoch(total_steps):
         """
