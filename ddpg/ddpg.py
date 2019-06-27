@@ -78,8 +78,7 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
             for i in range(len(targ_vars))]
 
     # Optimisers
-    opt_critic = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-2, learning_rate=1e-3,
-                                               name='opt_critic')
+    opt_critic = tf.train.AdamOptimizer(learning_rate=1e-3, name='opt_critic')
     opt_actor = tf.train.AdamOptimizer(learning_rate=1e-4, name='opt_actor')
     # Update critic by minimizing the loss
     critic_minimize = opt_critic.minimize(q_loss, name='critic_minimize')
@@ -123,6 +122,7 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
         process.reset()  # initalise random process for action exploration
         o = env.reset()  # receive initial observation state
         for step in range(steps_per_epoch):
+            env.render()
             if step < exploration_steps:
                 # Initial exploration
                 a = env.action_space.sample()

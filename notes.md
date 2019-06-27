@@ -1229,4 +1229,48 @@ Critic vs. target in TensorBoard
 - The quantities are clearly different
 - Target has less variance _in the first 3 or so thousand interacts_. After that, there doesn't seem to be much of a smoothing effect, and the delay is not very apparent, but nor are the values identical.
 - Both quantities steadily increase in variance over time, which can be explained well by the accumulation of experience, but I'm not sure if that's the sole explanation.
-- 
+
+## 2019.06.27
+
+Possibly important thought
+
+- Policy gradient
+    - Gradient of Q with respect to action
+    - Action is actor output _plus_ noise
+    - Noise is not in computation graph
+    - Clearly, the action at the current time step has noise. But should the policy gradient include or exclude the noise? Does it matter (i.e. does it get differentiated to zero)?
+    - Look _carefully_: paper says
+
+        $$ \nabla_{\theta^\mu} J \approx \frac{1}{N} \sum\limits_{i} \nabla_{a} Q(s, a | \theta^Q)|_{s=s_i, a=\mu(s_i)} \nabla_{\theta^{\mu}} \mu(s | \theta^{\mu})|_{s_i} $$
+
+        - Let's assume in good faith that there are no typos in this equation
+        - Here (_here_, for this calculation) the action input to Q is $\mu(s_i)$. No noise.
+        - What's the point of noise then? Well, $a_i$ (the batch action that was originally $\mu(s_t | \theta^\mu) + \mathcal{N}_t$ at some time step) is used for Q loss, _not_ pi loss. In fact, it is only used as input to Q for Q loss. The Bellman backup uses the (again, _noiseless_) target actor output.
+    - Hmm, no, I still think our graph is correct.
+
+Removing weight decay in actor
+
+- Bad result (but very limited test)
+
+Removing weight decay in critic
+
+- Wow, much better
+- Much more consistent on a good policy
+- Still fluctuates up and down in performance a little
+- The policy (at least observed in the first 37 epochs of seed 42) uses rapidly alternating, usually high force to keep the pendulum up. This doesn't seem absolutely optimal, or at least is not qualitatively optimal.
+- If this is a consistent result (across seeds), it is quite remarkable...two possibilities:
+    - There is something critically different about the implementation of `AdamWOptimiser`
+        - IIRC widespread implementations of Adam with weight decay had a bug/feature - could success be reliant on that?
+    - Weight decay parameter is sub-optimal
+        - It seems unlikely that the effect would be this drastic - we have never seen performance close to this good or consistent. Then again, basic DRL like this is known to be fragile.
+
+Given we may have hit upon the winner, what was my thinking process to get here?
+
+- I turned on environment rendering for training as well as testing, because I wanted to see the effect of exploration noise more clearly
+- Seeing the policy go from good to wildly bad (pendulum swinging around and around at high speed) made me think of gradient explosion and extreme weight values.
+- If so, I figured weight decay on the actor might help. So I tried that.
+- That didn't work, so I thought "why not" and instead _removed_ weight decay on the critic. I don't think this was reasoned causally, just an explorative, curiosity-driven decision.
+
+Next
+
+- Run pendulum on 5 other seeds with current configuration (namely no weight decay on critic)
