@@ -60,7 +60,7 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
         pi, q, q_pi = actor_critic(x_ph, a_ph, action_space, **ac_kwargs)
 
     with tf.variable_scope('target'):  # scope helps group the vars for target update
-        _, _, q_pi_targ = actor_critic(x2_ph, a_ph, action_space, **ac_kwargs)
+        pi_targ, q_targ, q_pi_targ = actor_critic(x2_ph, a_ph, action_space, **ac_kwargs)
 
     # Target variable initialisation
     ac_vars = [v for v in tf.trainable_variables() if 'actor-critic' in v.name]
@@ -92,7 +92,9 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
 
     # Create a file writer for logging
     writer = tf.summary.FileWriter(logdir)
-    tf.summary.scalar('q_loss', q_loss)
+    tf.summary.scalar('critic/loss', q_loss)
+    tf.summary.scalar('critic/value0', q[0])
+    tf.summary.scalar('critic/target0', q_targ[0])
     merged_summary = tf.summary.merge_all()
 
     # Start up a session
@@ -156,22 +158,23 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
             # Run training ops
             feed_dict = {x_ph: x_batch, a_ph: a_batch, x2_ph: x2_batch, r_ph: r_batch, d_ph: d_batch}
             if step < exploration_steps:
-                ops = [critic_minimize, q_loss]
-                _, q_loss_eval = sess.run(ops, feed_dict=feed_dict)
-                pi_loss_eval = 0
+                ops = [critic_minimize, q_loss, pi_loss]
+                _, q_loss_eval, pi_loss_eval = sess.run(ops, feed_dict=feed_dict)
             else:
                 ops = [critic_minimize, actor_minimize, q_loss, pi_loss]
                 _, _, q_loss_eval, pi_loss_eval = sess.run(ops, feed_dict=feed_dict)
+            q_eval, q_targ_eval = sess.run([q, q_targ], feed_dict=feed_dict)
             # Update the target networks
             sess.run(targ_update)
             # Log stats
+            epoch_logger.store(QVals=q_eval)
             epoch_logger.store(LossQ=q_loss_eval)
             epoch_logger.store(LossPi=pi_loss_eval)
             # Generate summary and write to file
             summ = sess.run(merged_summary, feed_dict=feed_dict)
             writer.add_summary(summ, total_steps)
         return total_steps
-                
+
     def test():
         # Run a few episodes for statistical power
         for _ in range(5):
@@ -212,6 +215,7 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
         epoch_logger.log_tabular('EpLen', average_only=True)
         epoch_logger.log_tabular('TestEpLen', average_only=True)
         epoch_logger.log_tabular('TotalEnvInteracts', average_only=True)
+        epoch_logger.log_tabular('QVals', with_min_and_max=True)
         epoch_logger.log_tabular('LossQ', average_only=True)
         epoch_logger.log_tabular('LossPi', average_only=True)
         epoch_logger.log_tabular('Time', average_only=True)

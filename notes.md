@@ -1167,5 +1167,66 @@ Action limits placed on actor output
 - `action_space.low` is the negative of `action_space.high` as far as we have seen
 - For example `Pendulum-v0` has one action dimension with `action_space.high = [2.]`. So output will be scaled to [-2., 2.]. This makes sense.
 - The general way to do it would be `(h - l) * (o + 1)/2 + l` where h is high, l is low, o is tanh output
+- But I would expect the relative magnitude of exploration noise to be the same across environments, given that they fix the noise parameters in the paper. This suggests it is better (but perhaps not essential) to scale actions after noise is added.
 
+Testing pendulum env with different noise scales
 
+- 20k steps
+- Control: `out/noise-scale/2019-06-22-11-19-08_ddpg_pendulum-v0_s42`
+- Running with noise scaled by `action_space.high`: `out/noise-scale/2019-06-22-11-27-13_ddpg_pendulum-v0_s42`
+    - Started rendering for this one
+    - Holy crap it's working!
+    - And then it's not...
+    - It went from balancing the pendulum upright every time in epoch 5, to going totally out of control in epoch 6, round and round and round with high torque
+    - Sometimes it is good at keeping it still, so it does well when the pendulum is initialised near-upright, but it can't swing up
+    - It doesn't seem to be learning (or it forgot) the back-and-forth technique. My intuition is that stronger exploration noise would help.
+    - It's worth keeping in mind that in the paper, it looks like it took 50-100k steps to get "good". We are only running 20k.
+        - Performance still increases fairly steadily for them though. It is probably a matter of "good" vs. "crushing it".
+- The results are similar between the above two - both peak in performance at about 5000 interacts
+- Oh...we should probably clip actions!
+    - `out/noise-scale/2019-06-22-11-54-56_ddpg_pendulum-v0_s42`
+    - Still peaks at epoch 5 and then gets unstable
+    - No significant change
+- Trying sigma = 0.3 with clipping
+    - No significant change
+- Trying sigma = 0.1 with clipping
+    - No significant change
+
+Next
+
+- Adding Q value logs
+
+## 2019.06.24
+
+Adding Q value logs
+
+- Ok, what is the current TensorBoard situation?
+    - Line 95: `tf.summary.scalar('q_loss', q_loss)`
+    - So I think we just repeat this line for different vars
+- Hmm, actually, how is this going to work? We have a batch of random experiences, each with a Q value.
+- Logging Q values with the epoch logger makes some sense, but TensorBoard makes less sense.
+    - One reason with TensorBoard is as another verification for target values tracking critic values
+- What exactly are the values in Figure 3 of the paper?
+    - "estimated Q values versus observed returns"
+    - Are the Q values after all training, or throughout training?
+    - We have a bunch of episodes. For each episode, there will be a return; for each time step, there will be a Q value.
+
+Testing with Q value logging (seed 42)
+
+- Closely matches pi loss, as expected. Not an exact match because the reported pi loss value is an average of averages over each batch, and the reported q value is an average of all values in every batch
+- Q loss peaks at 185 at about epoch 25 (1000 steps per epoch), then decreases substantially (to about 50) before fluctuating over shorter timescales. My most plausible explanation for the decrease is that in addition to the usual SGD pressures, the behaviour of the actor becomes more predictably bad.
+- I feel like it is key, the fact that it can nail a good policy within a few thousand interactions, then crash.
+    - Poor feedback (i.e. problem with Q)?
+        - If so, how would it reach a good policy in the first place?
+    - Poor response to feedback (i.e. problem with actor)?
+        - The actor is clearly _trying_ towards the goal, it's just bad at it
+        - For example, when the pendulum initialises right near upright, the actor first pushes towards upright, and when it overshoots, it pushes back
+    - Breakdown of the actor-critic relationship?
+        - This is hand-wavy, but what I'm getting at is that both the actor and critic, the interaction between them, results in unstable behaviour.
+
+Critic vs. target in TensorBoard
+
+- The quantities are clearly different
+- Target has less variance _in the first 3 or so thousand interacts_. After that, there doesn't seem to be much of a smoothing effect, and the delay is not very apparent, but nor are the values identical.
+- Both quantities steadily increase in variance over time, which can be explained well by the accumulation of experience, but I'm not sure if that's the sole explanation.
+- 
