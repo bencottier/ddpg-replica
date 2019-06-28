@@ -31,7 +31,7 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
     if logdir is not None:
         time_string = time.strftime('%Y-%m-%d-%H-%M-%S')
         logdir = f'{logdir}/{exp_name}/{time_string}_ddpg_{env_name.lower()}_s{seed}'
-    epoch_logger = EpochLogger(output_dir=logdir, exp_name=f'{exp_variant}-s{seed}')
+    epoch_logger = EpochLogger(output_dir=logdir, exp_name=f'{exp_variant}')
     epoch_logger.save_config(locals())
 
     # Set random seed
@@ -122,7 +122,7 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
         process.reset()  # initalise random process for action exploration
         o = env.reset()  # receive initial observation state
         for step in range(steps_per_epoch):
-            env.render()
+            # env.render()
             if step < exploration_steps:
                 # Initial exploration
                 a = env.action_space.sample()
