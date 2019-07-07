@@ -13,8 +13,8 @@ import time
 
 
 def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_per_epoch=5000,
-        batch_size=64, discount=0.99, polyak=0.001, exploration_steps=None, 
-        rand_proc=core.OrnsteinUhlenbeckProcess, rand_proc_kwargs=dict(),
+        batch_size=64, discount=0.99, polyak=0.001, weight_decay=1e-2,
+        exploration_steps=None, rand_proc=core.OrnsteinUhlenbeckProcess, rand_proc_kwargs=dict(),
         actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), logdir=None):
     # Do not reuse old graph (in case of persistence over multiple calls)
     tf.reset_default_graph()
@@ -79,7 +79,7 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
 
     # Optimisers
     # opt_critic = tf.train.AdamOptimizer(learning_rate=1e-3, name='opt_critic')
-    opt_critic = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-3, 
+    opt_critic = tf.contrib.opt.AdamWOptimizer(weight_decay=weight_decay, 
             learning_rate=1e-3, name='opt_critic')
     opt_actor = tf.train.AdamOptimizer(learning_rate=1e-4, name='opt_actor')
     # Update critic by minimizing the loss

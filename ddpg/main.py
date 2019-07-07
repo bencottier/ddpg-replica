@@ -22,6 +22,7 @@ if __name__ == '__main__':
     parser.add_argument('--discount', type=float, default=.99)
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--polyak', type=float, default=0.001)
+    parser.add_argument('--weight_decay', type=float, default=0.01)
     parser.add_argument('--exploration_steps', type=int, default=0)
     parser.add_argument('--rand_proc', default='ou')
     parser.add_argument('--rand_proc_kwargs', type=json.loads, default=dict())
@@ -38,5 +39,6 @@ if __name__ == '__main__':
                 logdir='out', seed=seed, 
                 epochs=args.epochs, steps_per_epoch=args.steps_per_epoch, 
                 batch_size=args.batch_size, discount=args.discount,
-                polyak=args.polyak, exploration_steps=args.exploration_steps,
+                polyak=args.polyak, weight_decay=args.weight_decay, 
+                exploration_steps=args.exploration_steps,
                 rand_proc=rand_proc, rand_proc_kwargs=args.rand_proc_kwargs)
