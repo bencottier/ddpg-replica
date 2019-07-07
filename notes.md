@@ -1274,3 +1274,85 @@ Given we may have hit upon the winner, what was my thinking process to get here?
 Next
 
 - Run pendulum on 5 other seeds with current configuration (namely no weight decay on critic)
+
+## 2019.06.28
+
+Running pendulum on 5 other seeds
+
+- All (relatively) consistent, good performance!
+- One of them had a bad spike towards the end.
+
+Restoring weight decay, but reduced from 1e-2 to 1e-3. 5 seeds.
+
+- According to the documentation for `AdamWOptimizer`,
+
+    > It computes the update step of train.AdamOptimizer and additionally decays the variable. Note that this is different from adding L2 regularization on the variables to the loss: it regularizes variables with large gradients more than L2 regularization would, which was shown to yield better training loss and generalization error in the paper above.
+
+- It regularises more than the standard. So I hypothesise that a lower weight decay parameter value will yield results closer to the paper. I can't actually compare because their scores are normalized, so what I really mean is that results will improve over the 1e-2 value. This also intuits from the fact that a value of 0 has turned out to be much better than 1e-2 (assumes smooth performance change with respect to the weight decay parameter value)
+- Result
+    - Better than 1e-2, worse than 0
+    - Test return has higher variance and lower average (about -250 rather than -160)
+    - Return consistently drops to around -1000 at around 25k interacts before returning to high
+    - Pi loss rises to about +70 and stays there, whereas for 0 weight decay it rises then steadiliy drops into the negative
+- So the two most plausible worlds here: the optimal weight decay for Pendulum is 0, or it is between 0 and 1e-3.
+- It is entirely possible that the optimal weight decay for Pendulum is far from the jointly optimal weight decay across many different environments, as in the paper. Presumably, they tried multiple values and checked the overall performance before settling on 1e-2. But the fact that their chosen 1e-2 is distastrous for Pendulum in our implementation is strong evidence of a difference in the weight decay optimiser.
+- The possibility of a relevant structural difference between `AdamWOptimizer` and traditional (Adam + weigh decay) still stands.
+
+Weight decay 1e-4
+
+- Performs between 1e-3 and 0 (only tested seed 0)
+
+HalfCheetah redux
+
+- Weight decay 1e-4
+    - Bad
+- Weight decay 0 (`AdamOptimizer`)
+    - Bad
+
+## 2019.06.30
+
+Review
+
+- We removed weight decay on the critic and got consistent high performance for pendulum, where before it was occasionally good but generally bad with high variance.
+- We did the same for cheetah and saw no improvement.
+    - Losses became very large. Pi loss was negative on the order of 1000, in one case 10,000
+        - Indicates critic is overestimating the return.
+        - Is the critic without weight decay easier to exploit by the actor?
+    - Return broadly averaged to about -500. So an even worse situation than the current best of "mixed" performance that we found with uncorrelated Gaussian noise instead of the default OU process (see 2019.06.12).
+
+Third environment
+
+- Third environment's the charm: try a third environment, see which way the performance lands without critic weight decay.
+- Swimmer
+    - Standard DDPG is far and away the best algorithm in the Spinning Up benchmarks. Some evidence that it is relatively more likely to do well for us.
+    - Let's check the parameters of the problem.
+        - obs_dim = 8
+        - act_dim = 2
+        - 1000 steps per episode
+        - Not too bad
+
+Detour: cheetah with weight decay 1e-3 and uncorrelated Gaussian exploration noise (seed 0)
+
+- 3 epochs in and it's doing very well (1800 test return)...let's see
+- Finished now. This is a big improvement, gets around 1500 return through to the end. However, there are still a few big hiccups in return; I know this is not unheard of but it seems a bit too inconsistent still.
+- Now trying 1e-3 with OU process exploration (still just seed 0)
+    - Much worse - the usual average 500 with high variance
+- Ok, so either there is a bug in our OU implementation, or the optimal weight decay differs between OU and Gaussian. But including the evidence from 2019.06.12 suggests that uncorrelated Gaussian exploration noise generally gives much better performance for cheetah (at least for our implementation).
+- Let's see how Gaussian std 0.1 noise with 1e-4 weight decay compares to 1e-3
+    - Worse, high variance, average around -400 but gets into positive hundreds
+
+Running Swimmer-v2, wd=1e-3, Gaussian std=1e-1
+
+- Inconsistent, generally doesn't look very good
+- Benchmarks indicate it takes much longer to get good, say 0.5-1 million interacts. I would still expect better than this over 100,000 interacts, but with a single seed, there's not enough evidence.
+- Running 100 epochs, 10,000 steps/epoch, episode length 200
+    - Got interrupted, will need to run again. Return was steady around 30 though, maybe reducing the episode length is bad
+
+
+## 2019.07.06
+
+Running swimmer as last time but with normal episode length
+
+Review
+
+- I think we should double down on as-exact-as-possible replication of the original method. In particular that means implementing weight decay the old-school way, and feeding in actions at the second hidden layer of Q. Maybe even setting the network initialisation method the exact same.

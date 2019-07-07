@@ -21,7 +21,7 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
 
     # Create environment
     env = gym.make(env_name)
-    # env._max_episode_steps = 150
+    # env._max_episode_steps = 200
 
     # Create loggers
     if exp_name is None:
@@ -78,7 +78,9 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
             for i in range(len(targ_vars))]
 
     # Optimisers
-    opt_critic = tf.train.AdamOptimizer(learning_rate=1e-3, name='opt_critic')
+    # opt_critic = tf.train.AdamOptimizer(learning_rate=1e-3, name='opt_critic')
+    opt_critic = tf.contrib.opt.AdamWOptimizer(weight_decay=1e-3, 
+            learning_rate=1e-3, name='opt_critic')
     opt_actor = tf.train.AdamOptimizer(learning_rate=1e-4, name='opt_actor')
     # Update critic by minimizing the loss
     critic_minimize = opt_critic.minimize(q_loss, name='critic_minimize')
