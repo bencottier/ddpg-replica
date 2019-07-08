@@ -80,6 +80,15 @@ def mlp(x, hidden_sizes, activation, output_activation=None):
     return out
 
 
+def q_mlp(x, a, hidden_sizes, activation, output_activation=None):
+    # The input layer is only observations
+    # Since there is only one layer the output activation is the hidden activation
+    q_s = mlp(x, hidden_sizes[:1], None, activation)
+    # Append action to first hidden layer
+    q_sa = mlp(tf.concat([q_s, a], axis=1), hidden_sizes[1:]+[1], activation, output_activation)
+    return q_sa
+
+
 def mlp_actor_critic(x, a, action_space, hidden_sizes=(400, 300), activation=tf.nn.relu):
     """
     Create MLPs for an actor-critic RL algorithm.
@@ -104,10 +113,10 @@ def mlp_actor_critic(x, a, action_space, hidden_sizes=(400, 300), activation=tf.
         pi = act_limit * mlp(x, hidden_sizes+[act_dim], activation, tf.nn.tanh)
     with tf.variable_scope('q'):
         # Squeeze needed to avoid unintended TF broadcasting down the line
-        q_net = mlp(tf.concat([x, a], axis=1), hidden_sizes+[1], activation, None)
+        q_net = q_mlp(x, a, hidden_sizes, activation, None)
         q = tf.squeeze(q_net, axis=1, name='q')
     with tf.variable_scope('q', reuse=True):
-        q_pi_net = mlp(tf.concat([x, pi], axis=1), hidden_sizes+[1], activation, None)
+        q_pi_net = q_mlp(x, pi, hidden_sizes, activation, None)
         q_pi = tf.squeeze(q_pi_net, axis=1, name='q_pi')
     return pi, q, q_pi
 
