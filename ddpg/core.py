@@ -75,8 +75,14 @@ def mlp(x, hidden_sizes, activation, output_activation=None):
     """
     out = x
     for hidden_size in hidden_sizes[:-1]:
-        out = tf.layers.dense(out, hidden_size, activation=activation)
-    out = tf.layers.dense(out, hidden_sizes[-1], activation=output_activation)
+        out = tf.layers.dense(out, hidden_size, activation=activation,
+            kernel_initializer=tf.random_uniform_initializer(
+                -1/out.shape[1].value**0.5, 1/out.shape[1].value**0.5),
+            bias_initializer=tf.random_uniform_initializer(
+                -1/out.shape[1].value**0.5, 1/out.shape[1].value**0.5))
+    out = tf.layers.dense(out, hidden_sizes[-1], activation=output_activation,
+            kernel_initializer=tf.random_uniform_initializer(-3e-3, 3e-3),
+            bias_initializer=tf.random_uniform_initializer(-3e-3, 3e-3))
     return out
 
 
