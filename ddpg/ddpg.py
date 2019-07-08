@@ -70,7 +70,7 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
 
     # Use "done" variable to cancel future value when at end of episode
     # The stop_gradient means inputs to the operation will not factor into gradients
-    backup = tf.stop_gradient(r_ph + (1 - d_ph) * discount * q_pi_targ, name='backup')
+    backup = tf.stop_gradient(r_ph + discount * q_pi_targ, name='backup')
     regulariser = tf.reduce_sum([tf.nn.l2_loss(v) for v in q_vars if 'kernel' in v.name])
     q_loss = tf.reduce_mean((backup - q)**2, name='q_loss') + weight_decay * regulariser
     pi_loss = -tf.reduce_mean(q_pi, name='pi_loss')
