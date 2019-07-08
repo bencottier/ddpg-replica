@@ -64,13 +64,15 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
 
     # Target variable initialisation
     ac_vars = [v for v in tf.trainable_variables() if 'actor-critic' in v.name]
+    q_vars = [v for v in ac_vars if 'q' in v.name]
     targ_vars = [v for v in tf.trainable_variables() if 'target' in v.name]
     targ_init = [targ_vars[i].assign(ac_vars[i]) for i in range(len(targ_vars))]
 
     # Use "done" variable to cancel future value when at end of episode
     # The stop_gradient means inputs to the operation will not factor into gradients
     backup = tf.stop_gradient(r_ph + (1 - d_ph) * discount * q_pi_targ, name='backup')
-    q_loss = tf.reduce_mean((backup - q)**2, name='q_loss')
+    regulariser = tf.reduce_sum([tf.nn.l2_loss(v) for v in q_vars if 'kernel' in v.name])
+    q_loss = tf.reduce_mean((backup - q)**2, name='q_loss') + weight_decay * regulariser
     pi_loss = -tf.reduce_mean(q_pi, name='pi_loss')
 
     # Target variable update
@@ -78,9 +80,7 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
             for i in range(len(targ_vars))]
 
     # Optimisers
-    # opt_critic = tf.train.AdamOptimizer(learning_rate=1e-3, name='opt_critic')
-    opt_critic = tf.contrib.opt.AdamWOptimizer(weight_decay=weight_decay, 
-            learning_rate=1e-3, name='opt_critic')
+    opt_critic = tf.train.AdamOptimizer(learning_rate=1e-3, name='opt_critic')
     opt_actor = tf.train.AdamOptimizer(learning_rate=1e-4, name='opt_actor')
     # Update critic by minimizing the loss
     critic_minimize = opt_critic.minimize(q_loss, name='critic_minimize')
