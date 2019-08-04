@@ -1356,3 +1356,58 @@ Running swimmer as last time but with normal episode length
 Review
 
 - I think we should double down on as-exact-as-possible replication of the original method. In particular that means implementing weight decay the old-school way, and feeding in actions at the second hidden layer of Q. Maybe even setting the network initialisation method the exact same.
+
+## 2019.07.07
+
+Implemented standard weight decay via direct L2 loss on `ac_vars`
+
+Testing cheetah with weight decay 0.01, normal noise std 0.1
+
+- This has everything the same as the best-to-date cheetah run, except new weight decay
+    - `out/critic_weight_decay/2019-06-30-12-06-05_ddpg_halfcheetah-v2_s0`
+
+## 2019.07.08
+
+Moving action input to second hidden layer for Q
+
+Customising parameter initialisation of MLPs
+
+- `tf.layers.dense()` takes `kernel_initializer` and `bias_initalizer` as arguments
+- Paper:
+
+    > The final layer weights and biases of both the actor and critic were initialized from a uniform distribution [-3 × 10^-3, 3 × 10^-3 ]
+
+    > The other layers were initialized from uniform distributions [-1/sqrt(f), 1/sqrt(f)] where f is the fan-in of the layer
+
+- The `glorot_uniform_initializer` seems to be the default
+- "fan-in" is the number of inputs to a hidden unit. So (obs_dim, 400, 300)
+
+As far as I know and intend, the implementation now matches the paper.
+
+Cheetah, standard settings, seed 0
+
+- Note that's OU process noise, which has always been problematic. So not expecting good things.
+- Epoch 1: jiggle vigorously!
+- Epoch 2: drop it like it's hot (or: drop it like there's no reward)
+- Epoch 3: leap before you faceplant
+- Epoch 4: sit!
+- Epoch 5: stand tall
+- Epoch 6: leap before you faceplant redux
+- Epoch 7: poised
+- Cancelled
+
+Normal noise
+
+- Same deal. Not moving forward!
+
+## 2019.08.04
+
+Review
+
+- Before coming back I was considering checking a solution, on the grounds that it offers more learning value than continuing to experiment solo at this point. However, reading through recent notes I don't think I'm quite done. For one, we ought to go back to Pendulum to test the new as-exact-as-knowable implementation on the simplest environment, rather than toil away at the more complex Cheetah.
+- The "greatest hits" of our journey have been
+    - Using uncorrelated Gaussian exploration noise rather than OU process. However, I expect this is due to a bug in the OU process implementation, or other parameters are not set right with respect to OU, or some other bug is interfering.
+    - Reducing weight decay. However, it is no longer clear that this is the way to go now that I have changed the weight decay to the "classic" formulation rather than `AdamWOptimiser`. This is a key thing to investigate, starting with Pendulum.
+- I am concerned about the recent change to as-exact-as-possible introducing bugs. We didn't check it that thoroughly, initially. It's hard work to get back into but I think it's worth another once-over and cross-check against the paper details, check of how TensorFlow functions work, etc.
+
+
