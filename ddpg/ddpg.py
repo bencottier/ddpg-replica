@@ -21,7 +21,7 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
 
     # Create environment
     env = gym.make(env_name)
-    # env._max_episode_steps = 200
+    # env._max_episode_steps = 200  # limit episode length
 
     # Create loggers
     if exp_name is None:
@@ -53,6 +53,8 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
     # Initalise random process for action exploration
     process = rand_proc(shape=(act_dim,), **rand_proc_kwargs)
     if exploration_steps is None:
+        exploration_steps = 0
+    elif exploration_steps < 0:
         exploration_steps = 0.2 * steps_per_epoch
 
     # Build main computation graph
@@ -65,6 +67,7 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
     # Target variable initialisation
     ac_vars = [v for v in tf.trainable_variables() if 'actor-critic' in v.name]
     q_vars = [v for v in ac_vars if 'q' in v.name]
+    pi_vars = [v for v in ac_vars if 'pi' in v.name]
     targ_vars = [v for v in tf.trainable_variables() if 'target' in v.name]
     targ_init = [targ_vars[i].assign(ac_vars[i]) for i in range(len(targ_vars))]
 
@@ -100,7 +103,7 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
 
     # Start up a session
     session_conf = tf.ConfigProto(intra_op_parallelism_threads=1,
-            inter_op_parallelism_threads=1)
+            inter_op_parallelism_threads=1)  # slower but ensures reproducibility
     sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
     sess.run(tf.global_variables_initializer())
     # Add the model graph to TensorBoard
@@ -113,6 +116,7 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
 
     def select_action(a_pi):
         a = a_pi + action_space.high * process.sample()
+        # Note: AFAIK clipping was not used in original DDPG
         return np.clip(a, action_space.low, action_space.high)
 
     def train_epoch(total_steps):
