@@ -1410,4 +1410,67 @@ Review
     - Reducing weight decay. However, it is no longer clear that this is the way to go now that I have changed the weight decay to the "classic" formulation rather than `AdamWOptimiser`. This is a key thing to investigate, starting with Pendulum.
 - I am concerned about the recent change to as-exact-as-possible introducing bugs. We didn't check it that thoroughly, initially. It's hard work to get back into but I think it's worth another once-over and cross-check against the paper details, check of how TensorFlow functions work, etc.
 
+## 2019.08.05
+
+Reading through all code
+
+- Hmm, so I know we flip-flopped on `pi_loss` depending on `q_pi`, then `q`, then back to `q_pi`. I think `q_pi` is the right _value_ to use, but my reaction is that backpropagating this loss would result in the `q` parameters being changed as well as the `pi` parameters. We just want the `pi` parameters to change here. Watch this space.
+    - In `minimize` function there is a `var_list` argument:
+
+        > Optional list or tuple of Variable objects to update to minimize loss. Defaults to the list of variables collected in the graph under the key GraphKeys.TRAINABLE_VARIABLES
+
+    - We need to ablate this bad boy
+- `q_vars = [v for v in ac_vars if 'q' in v.name]`
+    - Is this going to include `q_targ` incorrectly?
+    - No, because `ac_vars` excludes target vars
+- Not sure of clipping the actions to their limits after noise is added is part of the original algorithm - isn't this a change introduced by TD3?
+    - I think it is, but TD3 also uses clipped noise. So we can take it out to be purist, but otherwise it should generally be good.
+
+Checking new paper-detail changes
+
+- Fan-in is the number of inputs to one hidden unit. For an MLP, this is the length of the input vector. `out.shape[1]` seems correct since `out` is the previous output, in turn the current input, and the zeroth dimension is batch size, so the first dimension is the length.
+
+Running Pendulum with new paper-detail changes (seed 0)
+
+- Gaussian exploration noise, std 0.1
+- Just to emphasise: standard weight decay with parameter 0.01
+- Looks fine! Mildly varying but generally good swing-up, generally -200 to -100 test return
+- As good a time as any to note: user leaderboard for best 100-episode performance (presumably test average) on Pendulum-v0 ranges from -152.24 +- 10.87 to -123.11 +- 6.86. We aren't getting that exactly-upright-every-time performance, but close to it.
+    - Epoch 35 to 85: -178.26 +- 94.75.
+    - Epoch 50 to 100: -170.91 +- 95.25
+    - Epoch 75 to 100: -151.42 +- 31.15
+- There is the occasional drop, e.g. epoch 55 (-511) and 64 (-661)
+- Now, we haven't made any substantive changes to the code since the last cheetah run, so we should still consider that problematic. So now I will implement the backprop change and test Pendulum again.
+
+Running Pendulum with `actor_minimize` `var_list=pi_vars` (seed 0)
+
+- Looks better - tighter angles
+    - Update: tighter angles only sometimes
+- Comparative results
+    - Epoch 35 to 85: -160.01 +- 40.31
+    - Epoch 50 to 100: -154.50 +- 39.29
+    - Epoch 75 to 100: -151.86 +- 30.59
+- So towards the end, about the same, but better earlier on, without major hitches. This shouldn't be given much weight because it's only one seed, but it almost surely is not worse.
+
+Running Cheetah with `actor_minimize` `var_list=pi_vars` (seed 0)
+
+- It just isn't _moving_. It stops after a few hundred steps. The best it does is a handstand.
+- Cranking the exploration noise to 0.5 std
+    - Yup, exploration noise must control the "do stuff" parameter to an extent, but 0.5 may be overkill - it is doing much better but is unreliable and erratic (4 epochs in)
+    - Case in point, it is currently succeeding by sliding along its back.
+    - Fairly stable; one collapse in return (epoch 18) where it just flipped over and stopped.
+- Goldilocks: 0.2 std
+    - Similar to 0.1
+- 0.3 std
+    - Looked ok, but not beyond 1000 (didn't see visual behaviour)
+    - Seed 10 and 20
+- 0.2 std
+    - Seed 10 and 20
+
+## 2019.08.06
+
+Cheetah seed 0,10,20 std 1.0
+
+- So it's doing ok again, but, again, it likes to move upside down
+    - Who am I to judge its preferred locomotive orientation?
 
