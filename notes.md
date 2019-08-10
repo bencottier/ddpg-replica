@@ -1474,3 +1474,21 @@ Cheetah seed 0,10,20 std 1.0
 - So it's doing ok again, but, again, it likes to move upside down
     - Who am I to judge its preferred locomotive orientation?
 
+## 2019.08.10
+
+Pendulum std 1.0, seed 10
+
+- Comparing this given it gave better results than 0.1 for cheetah
+- Seed 10 for a change
+- Doing fine
+- I think if there's a common thread for my algorithm between cheetah and pendulum, it's laziness. The policy for pendulum rarely strives to be perfectly upright, even though that seems possible to learn in principle. Similarly for cheetah, it might learn to move on its back and it never breaks into the higher reward space of upright sprinting. It's like a mild optimiser; it settles for "close enough". It would be interesting to get to the bottom of this when comparing to a canonical solution.
+    - However I may be speaking on too little data. This run is converging on upright as I write. But even if so, I'm not confident it will be a stable policy for long.
+
+Decision to check the solution
+
+- I've decided at this point, it's more valuable to check the solution than perfect the implementation in the dark. I have learnt much, and the implementation seems decent. Satisfied for a first try. Got pendulum working well. Cheetah is a mixed bag.
+- So here goes...
+
+Spinning up DDPG implementation
+
+- 
