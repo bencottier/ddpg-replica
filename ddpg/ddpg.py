@@ -86,7 +86,7 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
     opt_critic = tf.train.AdamOptimizer(learning_rate=1e-3, name='opt_critic')
     opt_actor = tf.train.AdamOptimizer(learning_rate=1e-4, name='opt_actor')
     # Update critic by minimizing the loss
-    critic_minimize = opt_critic.minimize(q_loss, name='critic_minimize')
+    critic_minimize = opt_critic.minimize(q_loss, var_list=q_vars, name='critic_minimize')
     # Update the actor policy using the sampled policy gradient
     actor_minimize = opt_actor.minimize(pi_loss, var_list=pi_vars, name='actor_minimize')
 
