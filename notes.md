@@ -1483,6 +1483,13 @@ Pendulum std 1.0, seed 10
 - Doing fine
 - I think if there's a common thread for my algorithm between cheetah and pendulum, it's laziness. The policy for pendulum rarely strives to be perfectly upright, even though that seems possible to learn in principle. Similarly for cheetah, it might learn to move on its back and it never breaks into the higher reward space of upright sprinting. It's like a mild optimiser; it settles for "close enough". It would be interesting to get to the bottom of this when comparing to a canonical solution.
     - However I may be speaking on too little data. This run is converging on upright as I write. But even if so, I'm not confident it will be a stable policy for long.
+- It got closer than I've ever seen for longer than I've ever seen to perfectly upright, but still diverged from this after a time.
+- In later epochs it did that technique of rapidly switching the direction of torque, which I haven't seen in a while.
+- Comparative results
+    - Epoch 35 to 85: -150.15 +- 35.81
+    - Epoch 50 to 100: -158.92 +- 34.38
+    - Epoch 75 to 100: -168.14 +- 29.86
+    - Got worse! Started better than the previous two I recorded the same stats for. Then went to second place. Variance is consistently lowest though.
 
 Decision to check the solution
 
@@ -1491,4 +1498,69 @@ Decision to check the solution
 
 Spinning up DDPG implementation
 
-- 
+- MLP function OK
+- Ah, `get_vars` abstracts variable retrieval based on name matching
+- `mlp_actor_critic`
+    - Takes `act_dim` from `a` rather than `action_space` (should be fine)
+    - `act_limit` is `action_space.high[0]` where I use `action_space.high` (their assumption is that the bound is the same for all dimensions - not sure why)
+    - For q, action fed at first layer with state (knew this, different to paper)
+    - Action concatenated to state on last (-1) axis (I use axis 1, should be fine in this case)
+- `ReplayBuffer`
+    - A class implementation, makes sense for clean code
+- Default parameters that differ
+    - `polyak=0.995`
+        - Hopefully it swaps the variables relative to this...yes, confirmed
+        - Equivalent to 0.005 vs. our 0.001
+    - `pi_lr=1e-3`
+        - 1e-4 for us (and paper)
+    - `batch_size=100`
+        - 64 for us
+- No `reset_default_graph()`
+- `EpochLogger` first (ours has `gym.make` before that)
+- Does not use `random` library (just `np.random`)
+- `env.seed` not set
+- TF seed before NP seed
+- `actor-critic` block is the same
+- `target` block is the same
+- `backup` is same except for "done" stopper (knew this, different to paper AFAIK)
+- `pi_loss` same
+- `q_loss` same (without weight decay) except subtraction is swapped, which shouldn't matter
+- `target_update` is set up quite differently but it seems to be effectively the same
+    - I don't know, there could be tensorflow voodoo at work
+    - Makes use of `tf.group` to bundle all the target updates, where I just use the Python list
+    - Uses `tf.assign` as I do (just object vs. function syntax)
+- I am happy that I created `targ_init` and `targ_update` very similar to this implementation even though I had mostly forgotton that part of it and had to reason about it carefully on my own.
+- Specifying `var_list` for the pi optimiser is a match, but they also specify it for q. Pretty sure this doesn't matter, but worth checking.
+
+## 2019.08.11
+
+Continuing review of Spinning Up DDPG implementation
+
+- Big one: no weight decay!
+- Order of ops before training
+    - This: placeholders, actor-critic, target, replay buffer, backup, loss, optimisers, target update, target init, session
+    - Mine: placeholders, actor-critic, target, target init, backup, target update, optimisers, buffer, session
+- Action retrieval function
+    - They include the execution of pi in the separate function
+        - No `squeeze`
+    - `a + std * normal(1.0)` where I use `a + normal(std)`
+        - Always wondered about the equivalence of these...
+        - Yes, equivalent because of standard normal distribution conversion (z-score) http://mathworld.wolfram.com/NormalDistribution.html
+    - Noise is not scaled by action space limit
+    - Default noise scale is 0.1...the plot thickens
+- Exploration steps is a thing! Default 10,000
+- Ah, now this is interesting:
+
+    ```python
+    # Ignore the "done" signal if it comes from hitting the time
+    # horizon (that is, when it's an artificial terminal signal
+    # that isn't based on the agent's state)
+    d = False if ep_len==max_ep_len else d
+    ```
+
+    - Makes sense
+- Ah, interesting also: bundle gradient updates to the end of each trajectory/episode (this is informed by TD3)
+- Test procedure OK - nice use of `get_action` function with 0 noise to avoid repetition
+- Buffer OK
+- Well, my takeaway is that the differences are pretty minor, and nothing jumps out as being the reason for my mixed success. Happy with how close I got.
+- I can't find any implementation online from the original authors
