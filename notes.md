@@ -1562,5 +1562,32 @@ Continuing review of Spinning Up DDPG implementation
 - Ah, interesting also: bundle gradient updates to the end of each trajectory/episode (this is informed by TD3)
 - Test procedure OK - nice use of `get_action` function with 0 noise to avoid repetition
 - Buffer OK
+- Pi is updated regardless of exploration steps
+
+Thoughts
+
 - Well, my takeaway is that the differences are pretty minor, and nothing jumps out as being the reason for my mixed success. Happy with how close I got.
 - I can't find any implementation online from the original authors
+
+Testing most recent pendulum run with specification of `q_vars` for `critic_minimize`
+
+- Identical over first 10 epochs (stopped)
+
+Removing action-limit-scaling on noise and changing std to 0.1
+
+- Epoch 35 to 85: -156.65 +- 36.29
+- Epoch 50 to 100: -163.79 +- 34.45
+- Epoch 75 to 100: -173.69 +- 30.37
+- Similar to previous, but a bit worse
+- No outliers
+
+Cheetah std 0.1 with above changes, seed 10
+
+- Did well! Performance ended very high (~2000), no big hiccups after getting good (6 epochs)
+- My takeaways from the very limited data I have
+    - Noise scale affects stability and the risk of "lock in" to a very suboptimal but OK solution
+    - When I wasn't getting promising results with lower scale (0.1), I thought a higher scale would allow it to explore more, increasing the chance of hitting the right actions. I think this is true to an extent, but large noise can get it stuck in an OK but not great solution early on (case in point: cheetah running on its back).
+    - Lower scale means slower learning, but more stable and incremental improvement.
+- Seed 0 and 20
+    - Gee, neither take off! Hang around 0 return. Maybe they just need more time? 100k interacts is not much in this context.
+

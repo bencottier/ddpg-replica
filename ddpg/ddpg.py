@@ -115,7 +115,7 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
     epoch_logger.setup_tf_saver(sess, input_dict, output_dict)
 
     def select_action(a_pi):
-        a = a_pi + action_space.high * process.sample()
+        a = a_pi + process.sample()
         # Note: AFAIK clipping was not used in original DDPG
         return np.clip(a, action_space.low, action_space.high)
 
@@ -189,7 +189,7 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
             done = False
             o = env.reset()
             while not done:
-                env.render()
+                # env.render()
                 # Select action according to the current policy
                 a = np.squeeze(sess.run(pi, feed_dict={x_ph: o.reshape([1, -1])}), axis=0)
                 # Execute action and observe reward and new state
