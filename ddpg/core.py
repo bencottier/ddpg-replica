@@ -8,7 +8,7 @@ import numpy as np
 
 
 class StochasticProcess:
-    def __init__(self, loc=0., shape=None, x0=None, dt=.05):
+    def __init__(self, loc=0., shape=None, x0=None, dt=1.0):
         self.loc = loc
         self.shape = shape
         self.x0 = np.zeros(self.shape, dtype=np.float32) if x0 is None else x0

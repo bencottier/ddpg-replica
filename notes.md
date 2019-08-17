@@ -1591,3 +1591,11 @@ Cheetah std 0.1 with above changes, seed 10
 - Seed 0 and 20
     - Gee, neither take off! Hang around 0 return. Maybe they just need more time? 100k interacts is not much in this context.
 
+## 2019.08.17
+
+Examining an amateur implementation of DDPG with OpenAI Gym: https://github.com/stevenpjg/ddpg-aigym
+
+- Good, they have OU noise
+    - Ah...looks equivalent except it assumes a fixed time step of 1...that would make a big difference in my implementation, since I assume a time step equal to that in the Gym simulator (.05).
+- OO implementation. Downside is the pseudocode is spread over multiple files and functions. Upside is modularity and semantic crispness.
+- 
