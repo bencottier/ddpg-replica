@@ -55,7 +55,7 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
     if exploration_steps is None:
         exploration_steps = 0
     elif exploration_steps < 0:
-        exploration_steps = 0.2 * steps_per_epoch
+        exploration_steps = 2 * steps_per_epoch
 
     # Build main computation graph
     with tf.variable_scope('actor-critic'):
