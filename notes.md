@@ -1598,4 +1598,47 @@ Examining an amateur implementation of DDPG with OpenAI Gym: https://github.com/
 - Good, they have OU noise
     - Ah...looks equivalent except it assumes a fixed time step of 1...that would make a big difference in my implementation, since I assume a time step equal to that in the Gym simulator (.05).
 - OO implementation. Downside is the pseudocode is spread over multiple files and functions. Upside is modularity and semantic crispness.
-- 
+
+Cheetah with OU, time step 1.0
+
+- 20 epochs, not much good...but 100k steps is not a lot for cheetah, and it is only one seed (0)
+
+## 2019.08.19
+
+Setting up checkpointing
+
+- Spinning up implementation
+    - In setup: `logger.setup_tf_saver(sess, inputs={'x': x_ph, 'a': a_ph}, outputs={'pi': pi, 'q': q})`
+    - At regular points: `logger.save_state({'env': env}, None)`
+- Still can't pickle that `state_dict`, but the TF saver seems to be OK (haven't tried loading it back though, which is the real test)
+    - Getting rid of try-except in SU code to see what the actual error is
+        - `ctypes objects containing pointers cannot be pickled`
+        - Boils down to line 496 in Python's built-in `pickle.py`
+        - Particularly when reducing `LP_struct__XDisplay`
+        - Look, I don't think the environment state is important. Right now I'm interested in the model parameters, so that I can pick up their training or demo them in a separate program once trained.
+    - The save file is `vars.pkl`
+    - Well well...if I don't `env.render()`, no error! The price to pay...
+- Let's see if we can use SU's `test_policy` code
+    - `python -m spinup.run test_policy ./projects/ddpg/out/test_checkpoint/2019-08-19-15-17-06_ddpg_pendulum-v0_s0/`
+    - Ah bugger. You _do_ need the environment saved so it can load it here. But why not allow the environment to be recreated? :(
+    - Even Joshua knows the problem >:(
+        
+        ```
+        # try to load environment from save
+        # (sometimes this will fail because the environment could not be pickled)
+        ```
+    
+Wrote a test configuration in `launch.json` for `test_policy`. It works!
+
+Let's take a leaf out of `test_policy` and set up a resume ability in `ddpg.py`
+
+- The two essential things I want to do are
+    - Load the actor and critic parameters in, instead of the random initialisation
+    - Save/append everything in the original directory of the experiment being resumed
+- Problem: `Logger` overwrites the progress file
+    - Just change `'w'` to `'a'`?
+- Making this all work smoothly could be more trouble than it's worth. Maybe I would rather just run a fresh experiment if the use-case arised.
+    - Oh, this is especially true if we are going to set up the big runs on `melchior`.
+    - Yeah, let's abandon for now.
+
+

@@ -108,11 +108,8 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
     sess.run(tf.global_variables_initializer())
     # Add the model graph to TensorBoard
     writer.add_graph(sess.graph)
-    # Save variables
-    input_dict = {'x': x_ph, 'a': a_ph, 'x2': x2_ph, 'r': r_ph, 'd': d_ph}
-    output_dict = {'critic_minimize': critic_minimize, 'actor_minimize': actor_minimize, 
-            'q_loss': q_loss, 'pi_loss': pi_loss}
-    epoch_logger.setup_tf_saver(sess, input_dict, output_dict)
+    # Save model
+    epoch_logger.setup_tf_saver(sess, inputs={'x': x_ph, 'a': a_ph}, outputs={'pi': pi, 'q': q})
 
     def select_action(a_pi):
         a = a_pi + process.sample()
@@ -189,6 +186,9 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
             done = False
             o = env.reset()
             while not done:
+                # Optionally render the environment.
+                # WARNING: this seems to make the environment un-pickle-able, so it
+                # cannot be loaded later.
                 # env.render()
                 # Select action according to the current policy
                 a = np.squeeze(sess.run(pi, feed_dict={x_ph: o.reshape([1, -1])}), axis=0)
@@ -227,8 +227,7 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
         epoch_logger.log_tabular('Time', average_only=True)
         epoch_logger.dump_tabular()
         # Save state of training variables (use itr=ep to not overwrite)
-        # TODO: investigate cause of `Warning: could not pickle state_dict.`
-        # epoch_logger.save_state({'trainable_variables': tf.trainable_variables()})
+        epoch_logger.save_state({'env': env}, None)
 
     env.close()
     sess.close()
