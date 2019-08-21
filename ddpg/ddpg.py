@@ -16,13 +16,6 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
         batch_size=64, discount=0.99, polyak=0.001, weight_decay=1e-2,
         exploration_steps=None, rand_proc=core.OrnsteinUhlenbeckProcess, rand_proc_kwargs=dict(),
         actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), logdir=None):
-    # Do not reuse old graph (in case of persistence over multiple calls)
-    tf.reset_default_graph()
-
-    # Create environment
-    env = gym.make(env_name)
-    # env._max_episode_steps = 200  # limit episode length
-
     # Create loggers
     if exp_name is None:
         exp_name = 'uncategorised'
@@ -33,6 +26,13 @@ def ddpg(env_name, exp_name=None, exp_variant=None, seed=0, epochs=200, steps_pe
         logdir = f'{logdir}/{exp_name}/{time_string}_ddpg_{env_name.lower()}_s{seed}'
     epoch_logger = EpochLogger(output_dir=logdir, exp_name=f'{exp_variant}')
     epoch_logger.save_config(locals())
+
+    # Do not reuse old graph (in case of persistence over multiple calls)
+    tf.reset_default_graph()
+
+    # Create environment
+    env = gym.make(env_name)
+    # env._max_episode_steps = 200  # limit episode length
 
     # Set random seed
     random.seed(seed)
