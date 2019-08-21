@@ -1641,4 +1641,22 @@ Let's take a leaf out of `test_policy` and set up a resume ability in `ddpg.py`
     - Oh, this is especially true if we are going to set up the big runs on `melchior`.
     - Yeah, let's abandon for now.
 
+Running cheetah with OU noise, seed 10, 20
 
+- Still mediocre or bad
+- Alright then, I'll stick with Gaussian noise
+
+## 2019.08.21
+
+Setting up DDPG on melchior
+
+- Let's plan out the procedure as detailed as possible to save messing around on a paid machine
+    - Ok, suppose I'm at the melchior terminal, home folder. What do I do?
+        - `ssh paperspace`
+        - `jupyter notebook` (maybe)
+    - `git clone https://github.com/bencottier/ddpg-replica.git`
+        - Make sure remote is up to date first
+    - Verify that it is using GPU
+        - If we just install from `environment.yml` it may not build with CUDA
+        - Use `casper:programming/python/tf_test_gpu.py` to check
+    - Then we want to have a bash script equivalent to the configuration in `launch.json`
