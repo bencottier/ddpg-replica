@@ -1660,3 +1660,22 @@ Setting up DDPG on melchior
         - If we just install from `environment.yml` it may not build with CUDA
         - Use `casper:programming/python/tf_test_gpu.py` to check
     - Then we want to have a bash script equivalent to the configuration in `launch.json`
+- Now we execute
+    - Problem creating environment. I think it's because `environment.yml` does not specify the python version (3.6).
+        - Oh, it does specify. But `python` is listed after `openssl` which is causing the problem, so maybe if I move it to the top...
+        - Yep, same error on casper. So I'll try putting python at the top of dependencies.
+        - Nope, same error.
+        - Word [here](https://github.com/jupyterhub/binder/issues/149) is that those specific codes on the end of the dependencies are too specific, with too much machine dependence. Should try `conda env export --no-builds -f environment.yml`
+        - Also had to remove `spinup==0.1.1`, maybe because it is not in the default channel?
+        - We might be better off installing according to the SU [instructions](https://spinningup.openai.com/en/latest/user/installation.html)
+    - Ah shoot, just realised I won't be able to use MuJoCo...that was a major reason I didn't put it on melchior.
+        - Well, there are limited continuous environments without it, e.g. `LunarLanderContinuous`.
+
+Running LunarLanderContinuous-v2, seed 0, 250k iterations
+
+- Showed promise, visually it did well at controlling the ship in general, but never excelled. In the last few epochs, performance collapsed.
+
+Setting up on melchior
+  
+- Trying to set up tensorflow GPU, but... SU's strategy is rather CPU with MPI I believe. So I don't know if this is worth it. On the other hand, my implementation is not using MPI so GPU is going to be faster than what I have been doing.
+- Abandoning this.
